@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <title>Edgewood Education – Inactive Learner Tracker</title>
+    <meta name="description" content="Edgewood Education Inactive Learner Tracker – monitor student engagement, identify inactive learners, and export reports from Canvas LMS." />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+        *{box-sizing:border-box}
+        body{font-family:'Inter',sans-serif;background:#060608;color:#f1f5f9;overflow-x:hidden}
+        .grid-bg{background-color:#060608;background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);background-size:44px 44px}
+        .glass{background:linear-gradient(135deg,rgba(255,255,255,.035) 0%,rgba(0,0,0,.35) 100%);backdrop-filter:blur(32px);-webkit-backdrop-filter:blur(32px);border:1px solid rgba(255,255,255,.07);border-top-color:rgba(255,255,255,.12);border-left-color:rgba(255,255,255,.10);box-shadow:0 24px 48px -12px rgba(0,0,0,.55)}
+        .glass-sm{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);backdrop-filter:blur(16px)}
+        .shimmer{background:linear-gradient(135deg,#94a3b8 0%,#cbd5e1 35%,#f1f5f9 50%,#cbd5e1 65%,#94a3b8 100%);background-size:300% 300%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:shimmer 28s ease-in-out infinite}
+        @keyframes shimmer{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+        .glow-red{box-shadow:0 0 20px rgba(238,44,60,.18)}
+        .input-glow:focus{outline:none;border-color:rgba(255,255,255,.25);box-shadow:0 0 0 2px rgba(255,255,255,.06),0 0 18px rgba(255,255,255,.04);background:rgba(255,255,255,.05)}
+        .tab-active{background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.08)}
+        .tab-inactive{color:rgba(255,255,255,.4)}
+        .tab-inactive:hover{color:rgba(255,255,255,.75)}
+        .table-row:hover td{background:rgba(255,255,255,.025)!important}
+        .custom-scroll::-webkit-scrollbar{width:3px;height:3px}
+        .custom-scroll::-webkit-scrollbar-track{background:rgba(255,255,255,.02)}
+        .custom-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:3px}
+        .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+        .badge-active{background:rgba(16,185,129,.12);color:#34d399;border:1px solid rgba(16,185,129,.2)}
+        .badge-inactive{background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.2)}
+        .badge-missed{background:rgba(245,158,11,.12);color:#fbbf24;border:1px solid rgba(245,158,11,.2)}
+        .badge-low{background:rgba(59,130,246,.12);color:#60a5fa;border:1px solid rgba(59,130,246,.2)}
+        .badge-none{background:rgba(100,116,139,.12);color:#94a3b8;border:1px solid rgba(100,116,139,.2)}
+        .badge-notactive{background:rgba(239,68,68,.16);color:#fc8181;border:1px solid rgba(239,68,68,.25)}
+        .progress-bar{height:4px;border-radius:2px;background:rgba(255,255,255,.07);overflow:hidden}
+        .progress-fill{height:100%;border-radius:2px;transition:width .8s ease}
+        .kpi-card{transition:transform .2s,box-shadow .2s}
+        .kpi-card:hover{transform:translateY(-2px);box-shadow:0 30px 60px -15px rgba(0,0,0,.7)}
+        .spin{animation:spin .9s linear infinite}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        select option{background:#1e293b;color:#f1f5f9}
+        ::-webkit-scrollbar{width:4px}
+        ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:4px}
+    </style>
+</head>
+<body class="grid-bg min-h-screen overflow-x-hidden">
+
+<!-- Ambient glow -->
+<div style="position:fixed;top:-15%;right:-10%;width:560px;height:560px;background:#3b82f6;opacity:.03;border-radius:50%;filter:blur(120px);pointer-events:none;z-index:0"></div>
+<div style="position:fixed;bottom:-10%;left:-5%;width:400px;height:400px;background:#EE2C3C;opacity:.025;border-radius:50%;filter:blur(100px);pointer-events:none;z-index:0"></div>
+
+<div class="relative z-10 max-w-screen-2xl mx-auto px-4 sm:px-6 py-6 pb-20">
+
+    <!-- ── TOP NAV ── -->
+    <header class="flex items-center justify-between mb-8 flex-wrap gap-3">
+        <!-- Left: Brand + System Live -->
+        <div class="flex items-center gap-4">
+            <div>
+                <span class="text-sm font-black tracking-tight" style="color:#fff">Edgewood Education</span>
+                <span class="text-xs font-light text-white/40 ml-1">Inactive Learner Tracker</span>
+            </div>
+            <div class="flex items-center gap-1.5 text-[10px] text-white/45 glass-sm px-2.5 py-1.5 rounded-lg">
+                <div class="w-1.5 h-1.5 rounded-full bg-emerald-400" style="box-shadow:0 0 6px rgba(52,211,153,.7)"></div>
+                System Live
+            </div>
+        </div>
+
+        <!-- Right: Navigation only -->
+        <nav class="flex glass-sm rounded-full p-1 gap-1">
+            <button id="nav-audit" onclick="switchView('audit')" class="tab-active px-5 py-2 text-xs font-semibold rounded-full border border-transparent transition-all">Run Audit</button>
+            <button id="nav-dashboard" onclick="switchView('dashboard')" class="tab-inactive px-5 py-2 text-xs font-semibold rounded-full border border-transparent transition-all">Dashboard</button>
+        </nav>
+    </header>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- AUDIT VIEW -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div id="audit-view">
+        <div class="glass rounded-[2.5rem] p-8 lg:p-14 flex flex-col lg:flex-row gap-12 lg:gap-16">
+
+            <!-- Left – Info -->
+            <div class="lg:w-1/2 flex flex-col justify-center">
+
+                <h1 class="text-3xl lg:text-4xl font-extrabold shimmer leading-tight mb-4">
+                    Edgewood Education<br/>Inactive Learner<br/>Tracker
+                </h1>
+                <p class="text-white/50 text-sm leading-relaxed mb-8 font-light max-w-md">
+                    Identify inactive learners across Canvas courses instantly. Pull real-time engagement analytics, detect missed submissions, and automatically sync your report to Google Sheets for team review.
+                </p>
+
+                <div class="space-y-4 text-sm">
+                    <div class="flex items-start gap-4 group">
+                        <div class="w-7 h-7 rounded-full glass-sm flex items-center justify-center text-xs font-bold text-white/70 flex-shrink-0 mt-0.5 group-hover:border-[#EE2C3C] group-hover:text-[#EE2C3C] transition-all">1</div>
+                        <div class="pt-0.5"><strong class="text-white/90">Enter Course IDs</strong><br/><span class="text-white/45 text-xs">Single or comma-separated (e.g. EDU-714-UME9--Summer-2026, 12345)</span></div>
+                    </div>
+                    <div class="flex items-start gap-4 group">
+                        <div class="w-7 h-7 rounded-full glass-sm flex items-center justify-center text-xs font-bold text-white/70 flex-shrink-0 mt-0.5 group-hover:border-[#EE2C3C] group-hover:text-[#EE2C3C] transition-all">2</div>
+                        <div class="pt-0.5"><strong class="text-white/90">Parallel Processing</strong><br/><span class="text-white/45 text-xs">Multiple courses processed simultaneously for maximum speed</span></div>
+                    </div>
+                    <div class="flex items-start gap-4 group">
+                        <div class="w-7 h-7 rounded-full glass-sm flex items-center justify-center text-xs font-bold text-white/70 flex-shrink-0 mt-0.5 group-hover:border-[#EE2C3C] group-hover:text-[#EE2C3C] transition-all">3</div>
+                        <div class="pt-0.5"><strong class="text-white/90">Auto-Sync to Google Sheets</strong><br/><span class="text-white/45 text-xs">Full data (all weeks) pushed to individual tabs + Consolidate</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Divider -->
+            <div class="hidden lg:block w-px self-stretch" style="background:linear-gradient(to bottom,transparent,rgba(255,255,255,.1),transparent)"></div>
+
+            <!-- Right – Form -->
+            <div class="lg:w-1/2 flex flex-col justify-center">
+                <h2 class="text-2xl font-bold shimmer mb-2">Generate Report</h2>
+                <p class="text-white/45 text-sm mb-8">Enter Canvas Course ID(s) below. Supports SIS codes and numeric IDs.</p>
+
+                <form id="audit-form" class="space-y-5">
+                    <div>
+                        <label class="block text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2">Course ID(s)</label>
+                        <input id="course-input" type="text" placeholder="e.g. EDU-714-UME9--Summer-2026, 12345"
+                            class="input-glow w-full bg-black/30 border border-white/10 text-white text-sm rounded-xl px-5 py-4 transition-all placeholder-white/20 font-mono" />
+                        <p class="text-white/30 text-[11px] mt-2">Separate multiple course IDs with commas. Type <strong class="text-white/50">MOCK</strong> to test with demo data.</p>
+                    </div>
+
+                    <button type="submit" id="run-btn"
+                        class="w-full py-4 glass border border-white/15 hover:border-white/25 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-3 group hover:bg-white/5">
+                        <span id="btn-label">Run Engagement Audit</span>
+                        <svg id="btn-icon" class="w-4 h-4 opacity-70 group-hover:translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+                        <svg id="btn-spin" class="hidden spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>
+                    </button>
+
+                    <!-- Progress bar -->
+                    <div id="progress-wrap" class="hidden">
+                        <div class="glass-sm rounded-xl p-4 relative overflow-hidden">
+                            <div class="absolute left-0 top-0 bottom-0 w-0.5 bg-[#EE2C3C]"></div>
+                            <div class="flex items-center gap-3">
+                                <svg class="spin h-3.5 w-3.5 text-[#EE2C3C] flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                </svg>
+                                <span id="progress-text" class="text-xs font-mono text-white/75 truncate">Initializing...</span>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- DASHBOARD VIEW -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div id="dashboard-view" class="hidden space-y-6">
+
+        <!-- Header + Filters -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+                <h2 class="text-xl font-extrabold shimmer">Inactive Learner Dashboard</h2>
+                <p class="text-white/35 text-xs mt-0.5">Real-time analytics synced from Google Sheets</p>
+            </div>
+            <div class="flex items-center gap-3 flex-wrap">
+                <!-- Course selector -->
+                <select id="course-filter" onchange="filterDashboard()"
+                    class="glass-sm text-xs text-white/80 rounded-xl px-4 py-2.5 border border-white/08 bg-transparent cursor-pointer min-w-[200px]">
+                    <option value="ALL">All Courses</option>
+                </select>
+                <button onclick="loadDashboard(true)"
+                    class="glass-sm px-4 py-2.5 rounded-xl text-xs text-white/60 hover:text-white border border-white/06 hover:border-white/15 transition-all flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading skeleton -->
+        <div id="dash-loading" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
+            <div class="glass-sm rounded-2xl h-20 animate-pulse"></div>
+            <div class="glass-sm rounded-2xl h-20 animate-pulse"></div>
+            <div class="glass-sm rounded-2xl h-20 animate-pulse"></div>
+            <div class="glass-sm rounded-2xl h-20 animate-pulse"></div>
+            <div class="glass-sm rounded-2xl h-20 animate-pulse"></div>
+            <div class="glass-sm rounded-2xl h-20 animate-pulse"></div>
+        </div>
+
+        <div id="dash-content" class="hidden space-y-6">
+
+            <!-- KPI Cards -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-4" id="kpi-grid">
+                <div class="kpi-card glass rounded-2xl p-4">
+                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1.5">Courses</span>
+                    <span id="kpi-courses" class="text-2xl font-black text-white">--</span>
+                </div>
+                <div class="kpi-card glass rounded-2xl p-4">
+                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1.5">Total Learners</span>
+                    <span id="kpi-total" class="text-2xl font-black text-white">--</span>
+                </div>
+                <div class="kpi-card glass rounded-2xl p-4">
+                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1.5">Active</span>
+                    <span id="kpi-active" class="text-2xl font-black text-emerald-400">--</span>
+                </div>
+                <div class="kpi-card glass rounded-2xl p-4">
+                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1.5">Inactive</span>
+                    <span id="kpi-inactive" class="text-2xl font-black text-red-400">--</span>
+                </div>
+                <div class="kpi-card glass rounded-2xl p-4">
+                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1.5">Missing Subs</span>
+                    <span id="kpi-missing" class="text-2xl font-black text-amber-400">--</span>
+                </div>
+                <div class="kpi-card glass rounded-2xl p-4">
+                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1.5">Submitted</span>
+                    <span id="kpi-submitted" class="text-2xl font-black text-blue-400">--</span>
+                </div>
+                <div class="kpi-card glass rounded-2xl p-4">
+                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1.5">Avg Time</span>
+                    <div class="flex items-baseline gap-1"><span id="kpi-time" class="text-2xl font-black text-white">--</span><span class="text-[10px] text-white/40">hrs</span></div>
+                </div>
+            </div>
+
+            <!-- Row 2: Charts + Category breakdown -->
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+
+                <!-- Engagement Ratio Chart -->
+                <div class="glass rounded-2xl p-5 flex flex-col items-center relative min-h-[280px] justify-center">
+                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider absolute top-5 left-5">Engagement Ratio</span>
+                    <div class="relative w-44 h-44 mt-4">
+                        <canvas id="donut-chart"></canvas>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                            <span id="donut-pct" class="text-2xl font-black text-white">--%</span>
+                            <span class="text-[8px] text-white/40 uppercase tracking-wide">Active Rate</span>
+                        </div>
+                    </div>
+                    <div class="flex gap-4 mt-4">
+                        <div class="flex items-center gap-1.5 text-[10px] text-white/50"><div class="w-2 h-2 rounded-full bg-emerald-500"></div>Active</div>
+                        <div class="flex items-center gap-1.5 text-[10px] text-white/50"><div class="w-2 h-2 rounded-full bg-red-500"></div>Inactive</div>
+                    </div>
+                </div>
+
+                <!-- Category breakdown -->
+                <div class="glass rounded-2xl p-5">
+                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-4">Category Breakdown</span>
+                    <div id="cat-breakdown" class="space-y-3"></div>
+                </div>
+
+                <!-- Course breakdown -->
+                <div class="glass rounded-2xl p-5 flex flex-col">
+                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-4">Course Performance</span>
+                    <div class="overflow-y-auto flex-grow custom-scroll max-h-52">
+                        <table class="w-full text-[11px]">
+                            <thead>
+                                <tr class="text-white/30 border-b border-white/06">
+                                    <th class="py-2 text-left font-medium">Course</th>
+                                    <th class="py-2 text-center font-medium">Total</th>
+                                    <th class="py-2 text-center font-medium">Active</th>
+                                    <th class="py-2 text-center font-medium">Inactive</th>
+                                    <th class="py-2 text-center font-medium">Missing</th>
+                                </tr>
+                            </thead>
+                            <tbody id="course-table-body" class="divide-y divide-white/04"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Selector Bar -->
+            <div class="flex border-b border-white/10 gap-2 sm:gap-6 mb-6 overflow-x-auto custom-scroll">
+                <button id="dash-tab-watchlist" onclick="switchDashboardTab('watchlist')"
+                    class="border-b-2 border-[#EE2C3C] text-white px-2 py-3 text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap">
+                    Inactive Watchlist
+                </button>
+                <button id="dash-tab-consumers" onclick="switchDashboardTab('consumers')"
+                    class="border-b-2 border-transparent text-white/40 hover:text-white/70 px-2 py-3 text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap">
+                    Content Consumption Leaderboard
+                </button>
+                <button id="dash-tab-cohorts" onclick="switchDashboardTab('cohorts')"
+                    class="border-b-2 border-transparent text-white/40 hover:text-white/70 px-2 py-3 text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap">
+                    Cohort Performance Analysis
+                </button>
+            </div>
+
+            <!-- Tab 1: Inactive Watchlist -->
+            <div id="sect-watchlist" class="glass rounded-2xl p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <div class="w-1 h-4 bg-[#EE2C3C] rounded-full"></div>
+                        <span class="text-[9px] font-bold text-white/60 uppercase tracking-wider">Inactive Learner Watchlist</span>
+                        <span id="watchlist-count" class="badge badge-inactive ml-1">0</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <input id="watchlist-search" oninput="filterWatchlist()" type="text" placeholder="Search name or email..."
+                            class="glass-sm text-xs text-white/70 placeholder-white/25 px-3 py-1.5 rounded-lg border border-white/06 bg-transparent w-48"/>
+                        <select id="watchlist-cat" onchange="filterWatchlist()"
+                            class="glass-sm text-xs text-white/70 px-3 py-1.5 rounded-lg border border-white/06 bg-transparent">
+                            <option value="">All Categories</option>
+                            <option value="NO ACTIVITY">No Activity</option>
+                            <option value="MISSED SUBMISSION">Missed Submission</option>
+                            <option value="NOT ACTIVE">Not Active</option>
+                            <option value="LOW ACTIVITY - ASSIGNMENTS COMPLETED">Low Activity</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="overflow-x-auto custom-scroll">
+                    <table class="w-full text-[11px] min-w-[700px]">
+                        <thead>
+                            <tr class="text-white/30 border-b border-white/06">
+                                <th class="py-2.5 text-left font-medium pl-2">Learner</th>
+                                <th class="py-2.5 text-left font-medium">Email</th>
+                                <th class="py-2.5 text-left font-medium">Course / Cohort</th>
+                                <th class="py-2.5 text-center font-medium">Category</th>
+                                <th class="py-2.5 text-center font-medium">Missing</th>
+                                <th class="py-2.5 text-center font-medium">Overdue</th>
+                                <th class="py-2.5 text-center font-medium">Time Spent</th>
+                                <th class="py-2.5 text-left font-medium">Last Activity</th>
+                            </tr>
+                        </thead>
+                        <tbody id="watchlist-body" class="divide-y divide-white/03"></tbody>
+                    </table>
+                </div>
+                <p id="watchlist-empty" class="hidden text-center text-white/25 text-xs py-8">No inactive learners found for the selected filters.</p>
+            </div>
+
+            <!-- Tab 2: Content Consumption Leaderboard -->
+            <div id="sect-consumers" class="glass rounded-2xl p-5 hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <div class="w-1 h-4 bg-emerald-500 rounded-full"></div>
+                        <span class="text-[9px] font-bold text-white/60 uppercase tracking-wider">Learner Content Consumption — Time Spent Leaderboard</span>
+                        <span id="consumers-count" class="badge badge-active ml-1">0</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <input id="consumers-search" oninput="filterConsumers()" type="text" placeholder="Search name or email..."
+                            class="glass-sm text-xs text-white/70 placeholder-white/25 px-3 py-1.5 rounded-lg border border-white/06 bg-transparent w-48"/>
+                        <select id="consumers-status" onchange="filterConsumers()"
+                            class="glass-sm text-xs text-white/70 px-3 py-1.5 rounded-lg border border-white/06 bg-transparent">
+                            <option value="">All Statuses</option>
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="overflow-x-auto custom-scroll">
+                    <table class="w-full text-[11px] min-w-[600px]">
+                        <thead>
+                            <tr class="text-white/30 border-b border-white/06">
+                                <th class="py-2.5 text-center font-medium w-10">#</th>
+                                <th class="py-2.5 text-left font-medium">Learner</th>
+                                <th class="py-2.5 text-left font-medium">Course</th>
+                                <th class="py-2.5 text-center font-medium">Time Spent</th>
+                                <th class="py-2.5 text-center font-medium">Submitted</th>
+                                <th class="py-2.5 text-center font-medium">Total Asgn</th>
+                                <th class="py-2.5 text-center font-medium">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="top-learners-body" class="divide-y divide-white/03"></tbody>
+                    </table>
+                </div>
+                <p id="consumers-empty" class="hidden text-center text-white/25 text-xs py-8">No learners found for the selected filters.</p>
+            </div>
+
+            <!-- Tab 3: Cohort Performance Analysis -->
+            <div id="sect-cohorts" class="glass rounded-2xl p-5 hidden">
+                <div class="flex items-center gap-2 mb-4">
+                    <div class="w-1 h-4 bg-indigo-500 rounded-full"></div>
+                    <span class="text-[9px] font-bold text-white/60 uppercase tracking-wider">Cohort Analysis & Performance Insights</span>
+                </div>
+                <div class="overflow-x-auto custom-scroll">
+                    <table class="w-full text-[11px] min-w-[600px]">
+                        <thead>
+                            <tr class="text-white/30 border-b border-white/06">
+                                <th class="py-2.5 text-left font-medium pl-2">Cohort</th>
+                                <th class="py-2.5 text-center font-medium">Total Learners</th>
+                                <th class="py-2.5 text-center font-medium">Active Learners</th>
+                                <th class="py-2.5 text-center font-medium">Inactive Learners</th>
+                                <th class="py-2.5 text-center font-medium">Inactivity Rate</th>
+                                <th class="py-2.5 text-center font-medium">Total Missing Subs</th>
+                                <th class="py-2.5 text-center font-medium">Avg Time Spent</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cohorts-table-body" class="divide-y divide-white/03"></tbody>
+                    </table>
+                </div>
+                <p id="cohorts-empty" class="hidden text-center text-white/25 text-xs py-8">No cohort metrics found.</p>
+            </div>
+
+        </div><!-- /dash-content -->
+    </div><!-- /dashboard-view -->
+
+</div><!-- /container -->
+
+<script>
+// ────────────────────────────────────────────────────────────────────────────
+// State
+// ────────────────────────────────────────────────────────────────────────────
+let _rawData = null;
+let _donutChart = null;
+let _pollInterval = null;
+
+// ────────────────────────────────────────────────────────────────────────────
+// Navigation
+// ────────────────────────────────────────────────────────────────────────────
+function switchView(v) {
+    document.getElementById('audit-view').classList.toggle('hidden', v !== 'audit');
+    document.getElementById('dashboard-view').classList.toggle('hidden', v !== 'dashboard');
+    document.getElementById('nav-audit').className = v === 'audit'
+        ? 'tab-active px-5 py-2 text-xs font-semibold rounded-full border transition-all'
+        : 'tab-inactive px-5 py-2 text-xs font-semibold rounded-full border border-transparent transition-all';
+    document.getElementById('nav-dashboard').className = v === 'dashboard'
+        ? 'tab-active px-5 py-2 text-xs font-semibold rounded-full border transition-all'
+        : 'tab-inactive px-5 py-2 text-xs font-semibold rounded-full border border-transparent transition-all';
+    if (v === 'dashboard') loadDashboard();
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Audit form
+// ────────────────────────────────────────────────────────────────────────────
+document.getElementById('audit-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const codes = document.getElementById('course-input').value.trim();
+    if (!codes) return;
+
+    const btn  = document.getElementById('run-btn');
+    const lbl  = document.getElementById('btn-label');
+    const icon = document.getElementById('btn-icon');
+    const spin = document.getElementById('btn-spin');
+    const wrap = document.getElementById('progress-wrap');
+    const ptxt = document.getElementById('progress-text');
+
+    // Lock UI
+    btn.disabled = true;
+    lbl.textContent = 'Running Audit...';
+    icon.classList.add('hidden');
+    spin.classList.remove('hidden');
+    wrap.classList.remove('hidden');
+    ptxt.textContent = 'Starting...';
+    ptxt.className = 'text-xs font-mono text-white/75 truncate';
+
+    function fullReset(label='Run Engagement Audit') {
+        if (_pollInterval) clearInterval(_pollInterval);
+        btn.disabled = false;
+        lbl.textContent = label;
+        icon.classList.remove('hidden');
+        spin.classList.add('hidden');
+        wrap.classList.add('hidden');
+        ptxt.textContent = '';
+        ptxt.className = 'text-xs font-mono text-white/75 truncate';
+    }
+
+    try {
+        const res  = await fetch('/start', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({course_codes: codes}) });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        if (_pollInterval) clearInterval(_pollInterval);
+        _pollInterval = setInterval(async () => {
+            try {
+                const sr = await fetch(`/status/${data.task_id}`);
+                const sd = await sr.json();
+                ptxt.textContent = sd.status;
+
+                if (sd.status === 'COMPLETE') {
+                    clearInterval(_pollInterval);
+                    ptxt.textContent = 'Audit complete. Downloading report...';
+                    ptxt.className = 'text-xs font-mono text-emerald-400 truncate';
+                    // Trigger download via hidden iframe so page does not navigate away
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = `/download/${data.task_id}`;
+                    document.body.appendChild(iframe);
+                    setTimeout(() => {
+                        document.body.removeChild(iframe);
+                        fullReset('Run New Audit');
+                    }, 3000);
+                } else if (sd.status.startsWith('ERROR')) {
+                    clearInterval(_pollInterval);
+                    ptxt.className = 'text-xs font-mono text-red-400 truncate';
+                    btn.disabled = false;
+                    lbl.textContent = 'Retry Audit';
+                    icon.classList.remove('hidden');
+                    spin.classList.add('hidden');
+                }
+            } catch(pollErr) {
+                // network blip — keep polling
+            }
+        }, 600);
+    } catch (err) {
+        ptxt.textContent = 'Error: ' + err.message;
+        ptxt.className = 'text-xs font-mono text-red-400 truncate';
+        fullReset('Retry');
+    }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Dashboard
+// ────────────────────────────────────────────────────────────────────────────
+async function loadDashboard(force=false) {
+    document.getElementById('dash-loading').classList.remove('hidden');
+    document.getElementById('dash-content').classList.add('hidden');
+
+    try {
+        const r = await fetch('/api/dashboard' + (force ? '?t='+Date.now() : ''));
+        if (!r.ok) throw new Error('Failed to fetch dashboard data');
+        _rawData = await r.json();
+
+        // Populate course filter dropdown
+        const sel = document.getElementById('course-filter');
+        const prev = sel.value;
+        sel.innerHTML = '<option value="ALL">All Courses</option>';
+        (_rawData.course_tabs || []).forEach(tab => {
+            const o = document.createElement('option');
+            o.value = tab; o.textContent = tab;
+            sel.appendChild(o);
+        });
+        if (prev && prev !== 'ALL') sel.value = prev;
+
+        renderDashboard(_rawData);
+    } catch (e) {
+        console.error(e);
+        document.getElementById('dash-loading').classList.add('hidden');
+    }
+}
+
+function filterDashboard() {
+    if (!_rawData) return;
+    const sel  = document.getElementById('course-filter').value;
+    if (sel === 'ALL') { renderDashboard(_rawData); return; }
+
+    // Filter raw data to selected course
+    const filtered = deepFilterData(_rawData, sel);
+    renderDashboard(filtered);
+}
+
+function deepFilterData(data, courseId) {
+    const wl = (data.watchlist || []).filter(r => r.course_id === courseId || r.course_name === courseId);
+    const tl = (data.top_learners || []).filter(r => r.course_name === courseId || r.course_name.includes(courseId));
+    const cb = {};
+    if (data.course_breakdown[courseId]) cb[courseId] = data.course_breakdown[courseId];
+
+    const active   = wl.reduce((acc, r) => acc, 0); // watchlist is already inactive
+    const inactive = wl.length;
+    const cm = data.course_breakdown[courseId] || {};
+
+    return {
+        ...data,
+        kpis: {
+            total_courses: 1,
+            total_learners: cm.total || 0,
+            active_learners: cm.active || 0,
+            inactive_learners: cm.inactive || 0,
+            total_missing: cm.missing || 0,
+            total_submitted: cm.submitted || 0,
+            avg_time_hours: data.kpis.avg_time_hours,
+        },
+        watchlist: wl,
+        top_learners: tl,
+        course_breakdown: cb,
+    };
+}
+
+function renderDashboard(data) {
+    const k = data.kpis;
+    document.getElementById('kpi-courses').textContent   = k.total_courses   ?? '--';
+    document.getElementById('kpi-total').textContent     = k.total_learners  ?? '--';
+    document.getElementById('kpi-active').textContent    = k.active_learners ?? '--';
+    document.getElementById('kpi-inactive').textContent  = k.inactive_learners ?? '--';
+    document.getElementById('kpi-missing').textContent   = k.total_missing   ?? '--';
+    document.getElementById('kpi-submitted').textContent = k.total_submitted ?? '--';
+    document.getElementById('kpi-time').textContent      = k.avg_time_hours  ?? '--';
+
+    // Donut chart
+    const pct = k.total_learners > 0 ? Math.round(k.active_learners / k.total_learners * 100) : 0;
+    document.getElementById('donut-pct').textContent = pct + '%';
+    const ctx = document.getElementById('donut-chart').getContext('2d');
+    if (_donutChart) _donutChart.destroy();
+    _donutChart = new Chart(ctx, {
+        type:'doughnut',
+        data:{
+            labels:['Active','Inactive'],
+            datasets:[{
+                data:[k.active_learners, k.inactive_learners],
+                backgroundColor:['#10b981','#ef4444'],
+                borderWidth:0,
+                cutout:'76%',
+                borderRadius:4
+            }]
+        },
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:true}}}
+    });
+
+    // Category breakdown
+    const catDiv = document.getElementById('cat-breakdown');
+    catDiv.innerHTML = '';
+    const total = k.total_learners || 1;
+    const CAT_META = {
+        'ACTIVE':{'label':'Active','cls':'badge-active'},
+        'MISSED SUBMISSION':{'label':'Missed Submission','cls':'badge-missed'},
+        'NOT ACTIVE':{'label':'Not Active','cls':'badge-notactive'},
+        'NO ACTIVITY':{'label':'No Activity','cls':'badge-none'},
+        'LOW ACTIVITY - ASSIGNMENTS COMPLETED':{'label':'Low Activity','cls':'badge-low'},
+    };
+    const cats = data.cat_counts || {};
+    Object.entries(cats).sort((a,b)=>b[1]-a[1]).forEach(([cat,cnt]) => {
+        const m = CAT_META[cat] || {label:cat,cls:'badge-none'};
+        const pct = Math.round(cnt / total * 100);
+        catDiv.innerHTML += `
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <span class="badge ${m.cls}">${m.label}</span>
+            <span class="text-white/60 text-[11px]">${cnt} <span class="text-white/30">(${pct}%)</span></span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${pct>50?'#10b981':'#ef4444'}"></div></div>
+        </div>`;
+    });
+
+    // Course table
+    const ctb = document.getElementById('course-table-body');
+    ctb.innerHTML = '';
+    Object.entries(data.course_breakdown || {}).forEach(([cid, cm]) => {
+        const inPct = cm.total > 0 ? Math.round(cm.inactive/cm.total*100) : 0;
+        ctb.innerHTML += `<tr class="table-row">
+          <td class="py-2.5 text-white/80 font-mono text-[10px] max-w-[130px] truncate">${cid}</td>
+          <td class="py-2.5 text-center text-white/70">${cm.total}</td>
+          <td class="py-2.5 text-center text-emerald-400">${cm.active}</td>
+          <td class="py-2.5 text-center"><span class="${cm.inactive>0?'text-red-400':'text-white/50'}">${cm.inactive}</span></td>
+          <td class="py-2.5 text-center text-amber-400">${cm.missing}</td>
+        </tr>`;
+    });
+
+    // Watchlist
+    _renderWatchlist(data.watchlist || []);
+
+    // Top learners
+    _renderConsumers(data.top_learners || []);
+
+    // Cohorts
+    _renderCohorts(data.cohort_breakdown || {});
+
+    document.getElementById('dash-loading').classList.add('hidden');
+    document.getElementById('dash-content').classList.remove('hidden');
+}
+
+// ── Tab switcher ────────────────────────────────────────────────────────────
+function switchDashboardTab(tabId) {
+    document.getElementById('sect-watchlist').classList.add('hidden');
+    document.getElementById('sect-consumers').classList.add('hidden');
+    document.getElementById('sect-cohorts').classList.add('hidden');
+
+    ['watchlist', 'consumers', 'cohorts'].forEach(id => {
+        const btn = document.getElementById(`dash-tab-${id}`);
+        if (btn) {
+            btn.className = 'border-b-2 border-transparent text-white/40 hover:text-white/70 px-2 py-3 text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap';
+        }
+    });
+
+    document.getElementById(`sect-${tabId}`).classList.remove('hidden');
+    const activeBtn = document.getElementById(`dash-tab-${tabId}`);
+    if (activeBtn) {
+        activeBtn.className = 'border-b-2 border-[#EE2C3C] text-white px-2 py-3 text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap';
+    }
+}
+
+// ── Watchlist filtering ──────────────────────────────────────────────────────
+let _watchlistData = [];
+
+function _renderWatchlist(list) {
+    _watchlistData = list;
+    filterWatchlist();
+}
+
+function filterWatchlist() {
+    const search = (document.getElementById('watchlist-search').value || '').toLowerCase();
+    const cat    = (document.getElementById('watchlist-cat').value || '').toLowerCase();
+
+    const filtered = _watchlistData.filter(r => {
+        const matchSearch = !search || r.learner_name.toLowerCase().includes(search) || (r.email||'').toLowerCase().includes(search);
+        const matchCat    = !cat    || r.category.toLowerCase().includes(cat);
+        return matchSearch && matchCat;
+    });
+
+    const tbody = document.getElementById('watchlist-body');
+    const empty = document.getElementById('watchlist-empty');
+    document.getElementById('watchlist-count').textContent = filtered.length;
+
+    if (!filtered.length) {
+        tbody.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+    }
+    empty.classList.add('hidden');
+
+    const CAT_BADGE = {
+        'NO ACTIVITY':'badge-none',
+        'MISSED SUBMISSION':'badge-missed',
+        'NOT ACTIVE':'badge-notactive',
+        'LOW ACTIVITY - ASSIGNMENTS COMPLETED':'badge-low',
+    };
+
+    tbody.innerHTML = filtered.map(r => `
+        <tr class="table-row">
+          <td class="py-3 pl-2"><div class="text-white/90 font-medium">${r.learner_name}</div><div class="text-white/35 text-[10px]">${r.cohort||''}</div></td>
+          <td class="py-3 text-white/55 text-[10px]">${r.email||'-'}</td>
+          <td class="py-3"><div class="text-white/70 text-[10px] font-mono truncate max-w-[160px]">${r.course_name}</div></td>
+          <td class="py-3 text-center"><span class="badge ${CAT_BADGE[r.category]||'badge-none'} text-[9px]">${r.category}</span></td>
+          <td class="py-3 text-center ${r.missing>0?'text-amber-400':'text-white/40'}">${r.missing}</td>
+          <td class="py-3 text-center ${r.overdue>0?'text-red-400':'text-white/40'}">${r.overdue}</td>
+          <td class="py-3 text-center font-mono text-white/60">${r.time_hms||'00:00:00'}</td>
+          <td class="py-3 text-white/45 text-[10px]">${r.last_act||'N/A'}</td>
+        </tr>`
+    ).join('');
+}
+
+// ── Content Consumers filtering ──────────────────────────────────────────────
+let _consumersData = [];
+
+function _renderConsumers(list) {
+    _consumersData = list;
+    filterConsumers();
+}
+
+function filterConsumers() {
+    const search = (document.getElementById('consumers-search').value || '').toLowerCase();
+    const status = document.getElementById('consumers-status').value;
+
+    const filtered = _consumersData.filter(r => {
+        const matchSearch = !search || r.learner_name.toLowerCase().includes(search) || (r.email||'').toLowerCase().includes(search);
+        const matchStatus = !status || r.overall === status;
+        return matchSearch && matchStatus;
+    });
+
+    const tbody = document.getElementById('top-learners-body');
+    const empty = document.getElementById('consumers-empty');
+    document.getElementById('consumers-count').textContent = filtered.length;
+
+    if (!filtered.length) {
+        tbody.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+    }
+    empty.classList.add('hidden');
+
+    tbody.innerHTML = filtered.map((l, i) => `
+        <tr class="table-row">
+          <td class="py-2.5 text-center text-white/30 font-mono">${i+1}</td>
+          <td class="py-2.5"><div class="text-white/90 font-medium">${l.learner_name}</div><div class="text-white/35 text-[10px]">${l.email || ''}</div></td>
+          <td class="py-2.5 text-white/55 text-[10px] max-w-[150px] truncate">${l.course_name}</td>
+          <td class="py-2.5 text-center font-mono text-white/80">${l.time_hms || '--'}</td>
+          <td class="py-2.5 text-center text-blue-400">${l.submitted}</td>
+          <td class="py-2.5 text-center text-white/50">${l.total_asgn}</td>
+          <td class="py-2.5 text-center"><span class="badge ${l.overall==='Active'?'badge-active':'badge-inactive'}">${l.overall}</span></td>
+        </tr>`
+    ).join('');
+}
+
+// ── Cohort rendering ────────────────────────────────────────────────────────
+function _renderCohorts(cohorts) {
+    const tbody = document.getElementById('cohorts-table-body');
+    const empty = document.getElementById('cohorts-empty');
+
+    const cohortList = Object.values(cohorts);
+
+    if (!cohortList.length) {
+        tbody.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+    }
+    empty.classList.add('hidden');
+
+    tbody.innerHTML = cohortList.map(c => {
+        const rate = c.total > 0 ? Math.round(c.inactive / c.total * 100) : 0;
+        return `
+        <tr class="table-row">
+          <td class="py-3 pl-2 text-white/90 font-medium">${c.name}</td>
+          <td class="py-3 text-center text-white/70">${c.total}</td>
+          <td class="py-3 text-center text-emerald-400">${c.active}</td>
+          <td class="py-3 text-center text-red-400">${c.inactive}</td>
+          <td class="py-3 text-center">
+            <span class="badge ${rate > 30 ? 'badge-inactive' : 'badge-active'}">${rate}%</span>
+          </td>
+          <td class="py-3 text-center text-amber-400">${c.missing}</td>
+          <td class="py-3 text-center font-mono text-white/80">${c.avg_time_hours} hrs</td>
+        </tr>`;
+    }).join('');
+}
+</script>
+</body>
+</html>

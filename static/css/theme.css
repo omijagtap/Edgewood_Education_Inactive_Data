@@ -1,0 +1,424 @@
+@import "tailwindcss";
+
+/* ============================================================
+   upGrad AUTOMATION — PREMIUM DESIGN SYSTEM
+   ============================================================ */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border-color);
+  --color-border-hover: var(--border-hover);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-fg);
+  --color-card: var(--card-bg);
+  --color-card-hover: var(--card-hover);
+  --color-sidebar: var(--sidebar-bg);
+  --color-input: var(--input-bg);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* ============================================================
+   DARK THEME (Default)
+   ============================================================ */
+:root,
+.dark {
+  --background: #000000;
+  --foreground: #f4f4f5;
+  --surface: #0a0a0c;
+  --surface-hover: #121215;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.16);
+  --accent: #F23E36;
+  /* Exact upGrad Brand Red */
+  --accent-hover: #ff5952;
+  --muted: #121215;
+  --muted-fg: #8a8a93;
+  --card-bg: rgba(10, 10, 12, 0.45);
+  --card-hover: rgba(18, 18, 21, 0.65);
+  --sidebar-bg: #000000;
+  --input-bg: #0a0a0c;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --glow-color: rgba(242, 62, 54, 0.08);
+  --glass-bg: #0a0a0c;
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --grid-color: rgba(255, 255, 255, 0.13);
+  --noise-opacity: 0;
+  /* Remove noise texture */
+  --shadow-color: rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+
+/* ============================================================
+   LIGHT THEME
+   ============================================================ */
+.light {
+  --background: #ffffff;
+  --foreground: #09090b;
+  --surface: #f4f4f5;
+  --surface-hover: #e4e4e7;
+  --border-color: rgba(0, 0, 0, 0.12);
+  --border-hover: rgba(0, 0, 0, 0.2);
+  --accent: #F23E36;
+  /* Exact upGrad Brand Red */
+  --accent-hover: #d32f27;
+  --muted: #f4f4f5;
+  --muted-fg: #4b5563;
+  /* High-contrast crisp dark gray for perfect readability */
+  --card-bg: rgba(255, 255, 255, 0.45);
+  --card-hover: rgba(244, 244, 245, 0.65);
+  --sidebar-bg: #ffffff;
+  --input-bg: #ffffff;
+  --success: #15803d;
+  --warning: #b45309;
+  --danger: #b91c1c;
+  --glow-color: rgba(242, 62, 54, 0.04);
+  --glass-bg: #ffffff;
+  --glass-border: rgba(0, 0, 0, 0.12);
+  --grid-color: rgba(0, 0, 0, 0.06);
+  --noise-opacity: 0;
+  --shadow-color: rgba(0, 0, 0, 0.04);
+  color-scheme: light;
+}
+
+/* ============================================================
+   BASE STYLES
+   ============================================================ */
+* {
+  box-sizing: border-box;
+}
+
+/* Smooth layout color transitioning when changing themes - ultra slow 0.8s for extreme eye-comfort */
+body,
+aside,
+nav,
+div,
+button,
+input,
+span,
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  transition: background-color 0.8s cubic-bezier(0.25, 1, 0.5, 1),
+    border-color 0.8s cubic-bezier(0.25, 1, 0.5, 1),
+    color 0.8s cubic-bezier(0.25, 1, 0.5, 1),
+    box-shadow 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+html {
+  font-size: 70%;
+  /* Reduces rem-based fonts globally by 30% */
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 9.8px;
+  /* Reduces px-based body fallback font globally by 30% (14px * 0.70) */
+  letter-spacing: -0.01em;
+  line-height: 1.5;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* Noise overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: var(--noise-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='512' height='512' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--muted-fg);
+  border-radius: 999px;
+  opacity: 0.3;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  opacity: 0.5;
+}
+
+/* ============================================================
+   GLASSMORPHISM UTILITIES
+   ============================================================ */
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+}
+
+.glass-strong {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+}
+
+/* ============================================================
+   GLOW EFFECTS
+   ============================================================ */
+.glow-accent {
+  box-shadow: 0 0 40px var(--glow-color), 0 0 80px var(--glow-color);
+}
+
+.glow-text {
+  text-shadow: 0 0 30px var(--glow-color);
+}
+
+/* ============================================================
+   CARD SHINE SWEEP
+   ============================================================ */
+.card-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-shine::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(to right,
+      transparent 0%,
+      rgba(255, 255, 255, 0.02) 45%,
+      rgba(255, 255, 255, 0.06) 50%,
+      rgba(255, 255, 255, 0.02) 55%,
+      transparent 100%);
+  transform: rotate(45deg) translateX(-100%);
+  transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.card-shine:hover::after {
+  transform: rotate(45deg) translateX(100%);
+}
+
+.light .card-shine::after {
+  background: linear-gradient(to right,
+      transparent 0%,
+      rgba(0, 0, 0, 0.01) 45%,
+      rgba(0, 0, 0, 0.03) 50%,
+      rgba(0, 0, 0, 0.01) 55%,
+      transparent 100%);
+}
+
+/* ============================================================
+   AMBIENT GLOW BACKGROUND
+   ============================================================ */
+.ambient-glow {
+  position: fixed;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.12;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ============================================================
+   STATUS BADGES
+   ============================================================ */
+.status-live {
+  background: rgba(34, 197, 94, 0.12);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.light .status-live {
+  background: rgba(22, 163, 74, 0.08);
+  color: #16a34a;
+  border: 1px solid rgba(22, 163, 74, 0.2);
+}
+
+.status-maintenance {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.light .status-maintenance {
+  background: rgba(217, 119, 6, 0.08);
+  color: #d97706;
+  border: 1px solid rgba(217, 119, 6, 0.2);
+}
+
+.status-development {
+  background: rgba(99, 102, 241, 0.12);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.light .status-development {
+  background: rgba(79, 70, 229, 0.08);
+  color: #4f46e5;
+  border: 1px solid rgba(79, 70, 229, 0.2);
+}
+
+.status-unavailable {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.light .status-unavailable {
+  background: rgba(220, 38, 38, 0.08);
+  color: #dc2626;
+  border: 1px solid rgba(220, 38, 38, 0.2);
+}
+
+/* ============================================================
+   PULSE ANIMATION
+   ============================================================ */
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ============================================================
+   GRID TEXTURE BACKGROUND
+   ============================================================ */
+.grid-bg {
+  background-image:
+    linear-gradient(var(--grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* ============================================================
+   SHIMMER EFFECT FOR LOGO
+   ============================================================ */
+@keyframes shimmer {
+  0% {
+    background-position: 180% -80%;
+  }
+
+  100% {
+    background-position: -80% 180%;
+  }
+}
+
+.logo-shimmer {
+  background: linear-gradient(135deg,
+      #F23E36 0%,
+      #F23E36 40%,
+      #ffc7c4 50%,
+      /* Soft, translucent light brand red shine instead of stark white */
+      #F23E36 60%,
+      #F23E36 100%);
+  background-size: 250% 250%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 14s ease-in-out infinite;
+  /* Ultra-slow 14s diagonal sweep */
+}
+
+/* ============================================================
+   LIVE INDICATOR DOT
+   ============================================================ */
+@keyframes live-pulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+  }
+
+  50% {
+    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
+  }
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+.light .live-dot {
+  background: #16a34a;
+}
+
+/* ============================================================
+   INPUT FOCUS STYLES
+   ============================================================ */
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--border-hover) !important;
+  box-shadow: 0 0 0 2px var(--border-color) !important;
+}
+
+/* ============================================================
+   SELECTION
+   ============================================================ */
+::selection {
+  background: var(--accent);
+  color: white;
+}
+
+/* ============================================================
+   BUTTON PRESS EFFECT
+   ============================================================ */
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+/* ============================================================
+   RESPONSIVE HELPERS
+   ============================================================ */
+@media (max-width: 768px) {
+  .ambient-glow {
+    width: 300px;
+    height: 300px;
+    filter: blur(80px);
+  }
+}
