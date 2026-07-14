@@ -13,7 +13,7 @@ try:
 except ImportError:
     pass
 
-SPREADSHEET_ID = os.getenv("GOOGLE_SHEET_ID")
+SPREADSHEET_ID = os.getenv("GOOGLE_SHEET_ID", "14SKZH71x2hCgwfA2CCwifkWTD4VQht0n43MFpfDY6u0")
 GOOGLE_CREDS_FILE = os.getenv("GOOGLE_CREDS_FILE", "linen-rex-436411-r4-9bba0db0c720.json")
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CREDENTIALS_PATH = GOOGLE_CREDS_FILE if os.path.isabs(GOOGLE_CREDS_FILE) else os.path.join(SCRIPT_DIR, GOOGLE_CREDS_FILE)
@@ -77,11 +77,18 @@ def get_google_client():
     ]
     raw = os.getenv("GOOGLE_CREDS_JSON")
     if raw:
-        creds = service_account.Credentials.from_service_account_info(json.loads(raw), scopes=scopes)
+        try:
+            creds = service_account.Credentials.from_service_account_info(json.loads(raw), scopes=scopes)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse GOOGLE_CREDS_JSON. Ensure it is valid JSON. Error: {e}")
     elif os.path.exists(CREDENTIALS_PATH):
         creds = service_account.Credentials.from_service_account_file(CREDENTIALS_PATH, scopes=scopes)
     else:
-        raise FileNotFoundError(f"Credentials not found at {CREDENTIALS_PATH}")
+        raise FileNotFoundError(f"Credentials not found at {CREDENTIALS_PATH} and GOOGLE_CREDS_JSON is empty.")
+    
+    if not SPREADSHEET_ID:
+        raise ValueError("GOOGLE_SHEET_ID is missing from environment variables.")
+        
     return gspread.Client(auth=creds)
 
 

@@ -122,7 +122,10 @@ def run_audit(task_id, course_codes_input):
                                 )
                                 sheets_helper._dashboard_cache["data"] = None
                             except Exception as se:
-                                original_print(f"Sheets error for {cid}: {se}")
+                                err_msg = f"ERROR: Google Sheets failed for {cid}: {se}"
+                                original_print(err_msg)
+                                _set_progress(task_id, err_msg)
+                                time.sleep(3)
                     except Exception as e:
                         failures.append(cid)
                         original_print(f"Error processing {cid}: {e}")
