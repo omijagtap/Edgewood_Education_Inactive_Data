@@ -258,7 +258,7 @@
                                     <th class="py-2 text-center font-medium">Missing</th>
                                 </tr>
                             </thead>
-                            <tbody id="course-table-body" class="divide-y divide-white/04"></tbody>
+                            <tbody id="course-table-body" class="divide-y divide-white/5"></tbody>
                         </table>
                     </div>
                 </div>
@@ -289,9 +289,9 @@
                         <span id="watchlist-count" class="badge badge-inactive ml-1">0</span>
                     </div>
                     <div class="flex gap-2">
-                        <input id="watchlist-search" oninput="filterWatchlist()" type="text" placeholder="Search name or email..."
+                        <input id="watchlist-search" oninput="filterWatchlist(true)" type="text" placeholder="Search name or email..."
                             class="glass-sm text-xs text-white/70 placeholder-white/25 px-3 py-1.5 rounded-lg border border-white/06 bg-transparent w-48"/>
-                        <select id="watchlist-cat" onchange="filterWatchlist()"
+                        <select id="watchlist-cat" onchange="filterWatchlist(true)"
                             class="glass-sm text-xs text-white/70 px-3 py-1.5 rounded-lg border border-white/06 bg-transparent">
                             <option value="">All Categories</option>
                             <option value="NO ACTIVITY">No Activity</option>
@@ -315,9 +315,10 @@
                                 <th class="py-2.5 text-left font-medium">Last Activity</th>
                             </tr>
                         </thead>
-                        <tbody id="watchlist-body" class="divide-y divide-white/03"></tbody>
+                        <tbody id="watchlist-body" class="divide-y divide-white/5"></tbody>
                     </table>
                 </div>
+                <div id="watchlist-pagination" class="flex justify-center items-center gap-2 mt-4 pb-1"></div>
                 <p id="watchlist-empty" class="hidden text-center text-white/25 text-xs py-8">No inactive learners found for the selected filters.</p>
             </div>
 
@@ -330,9 +331,9 @@
                         <span id="consumers-count" class="badge badge-active ml-1">0</span>
                     </div>
                     <div class="flex gap-2">
-                        <input id="consumers-search" oninput="filterConsumers()" type="text" placeholder="Search name or email..."
+                        <input id="consumers-search" oninput="filterConsumers(true)" type="text" placeholder="Search name or email..."
                             class="glass-sm text-xs text-white/70 placeholder-white/25 px-3 py-1.5 rounded-lg border border-white/06 bg-transparent w-48"/>
-                        <select id="consumers-status" onchange="filterConsumers()"
+                        <select id="consumers-status" onchange="filterConsumers(true)"
                             class="glass-sm text-xs text-white/70 px-3 py-1.5 rounded-lg border border-white/06 bg-transparent">
                             <option value="">All Statuses</option>
                             <option value="Active">Active</option>
@@ -353,9 +354,10 @@
                                 <th class="py-2.5 text-center font-medium">Status</th>
                             </tr>
                         </thead>
-                        <tbody id="top-learners-body" class="divide-y divide-white/03"></tbody>
+                        <tbody id="top-learners-body" class="divide-y divide-white/5"></tbody>
                     </table>
                 </div>
+                <div id="consumers-pagination" class="flex justify-center items-center gap-2 mt-4 pb-1"></div>
                 <p id="consumers-empty" class="hidden text-center text-white/25 text-xs py-8">No learners found for the selected filters.</p>
             </div>
 
@@ -378,9 +380,10 @@
                                 <th class="py-2.5 text-center font-medium">Avg Time Spent</th>
                             </tr>
                         </thead>
-                        <tbody id="cohorts-table-body" class="divide-y divide-white/03"></tbody>
+                        <tbody id="cohorts-table-body" class="divide-y divide-white/5"></tbody>
                     </table>
                 </div>
+                <div id="cohorts-pagination" class="flex justify-center items-center gap-2 mt-4 pb-1"></div>
                 <p id="cohorts-empty" class="hidden text-center text-white/25 text-xs py-8">No cohort metrics found.</p>
             </div>
 
@@ -660,15 +663,41 @@ function switchDashboardTab(tabId) {
     }
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Pagination Helper
+// ────────────────────────────────────────────────────────────────────────────
+function renderPagination(containerId, totalItems, pageSize, currentPage, pageVarName, callbackName) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const totalPages = Math.ceil(totalItems / pageSize);
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+    let html = '';
+    for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) {
+            const active = i === currentPage ? 'bg-white/20 text-white' : 'bg-transparent text-white/40 hover:bg-white/10';
+            html += `<button onclick="${pageVarName}=${i}; ${callbackName}()" class="px-2.5 py-1 text-[10px] font-bold rounded ${active} transition-all">${i}</button>`;
+        } else if (i === currentPage - 2 || i === currentPage + 2) {
+            html += `<span class="text-white/20 text-[10px] px-1">...</span>`;
+        }
+    }
+    container.innerHTML = html;
+}
+
 // ── Watchlist filtering ──────────────────────────────────────────────────────
 let _watchlistData = [];
+let watchlistPage = 1;
 
 function _renderWatchlist(list) {
     _watchlistData = list;
+    watchlistPage = 1;
     filterWatchlist();
 }
 
-function filterWatchlist() {
+function filterWatchlist(resetPage = false) {
+    if (resetPage) watchlistPage = 1;
     const search = (document.getElementById('watchlist-search').value || '').toLowerCase();
     const cat    = (document.getElementById('watchlist-cat').value || '').toLowerCase();
 
@@ -684,10 +713,17 @@ function filterWatchlist() {
 
     if (!filtered.length) {
         tbody.innerHTML = '';
+        document.getElementById('watchlist-pagination').innerHTML = '';
         empty.classList.remove('hidden');
         return;
     }
     empty.classList.add('hidden');
+
+    const PAGE_SIZE = 15;
+    const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+    if (watchlistPage > totalPages) watchlistPage = totalPages;
+    const startIdx = (watchlistPage - 1) * PAGE_SIZE;
+    const paged = filtered.slice(startIdx, startIdx + PAGE_SIZE);
 
     const CAT_BADGE = {
         'NO ACTIVITY':'badge-none',
@@ -696,7 +732,7 @@ function filterWatchlist() {
         'LOW ACTIVITY - ASSIGNMENTS COMPLETED':'badge-low',
     };
 
-    tbody.innerHTML = filtered.map(r => `
+    tbody.innerHTML = paged.map(r => `
         <tr class="table-row">
           <td class="py-3 pl-2"><div class="text-white/90 font-medium">${r.learner_name}</div><div class="text-white/35 text-[10px]">${r.cohort||''}</div></td>
           <td class="py-3 text-white/55 text-[10px]">${r.email||'-'}</td>
@@ -708,17 +744,22 @@ function filterWatchlist() {
           <td class="py-3 text-white/45 text-[10px]">${r.last_act||'N/A'}</td>
         </tr>`
     ).join('');
+
+    renderPagination('watchlist-pagination', filtered.length, PAGE_SIZE, watchlistPage, 'watchlistPage', 'filterWatchlist');
 }
 
 // ── Content Consumers filtering ──────────────────────────────────────────────
 let _consumersData = [];
+let consumersPage = 1;
 
 function _renderConsumers(list) {
     _consumersData = list;
+    consumersPage = 1;
     filterConsumers();
 }
 
-function filterConsumers() {
+function filterConsumers(resetPage = false) {
+    if (resetPage) consumersPage = 1;
     const search = (document.getElementById('consumers-search').value || '').toLowerCase();
     const status = document.getElementById('consumers-status').value;
 
@@ -734,12 +775,19 @@ function filterConsumers() {
 
     if (!filtered.length) {
         tbody.innerHTML = '';
+        document.getElementById('consumers-pagination').innerHTML = '';
         empty.classList.remove('hidden');
         return;
     }
     empty.classList.add('hidden');
+    
+    const PAGE_SIZE = 15;
+    const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+    if (consumersPage > totalPages) consumersPage = totalPages;
+    const startIdx = (consumersPage - 1) * PAGE_SIZE;
+    const paged = filtered.slice(startIdx, startIdx + PAGE_SIZE);
 
-    tbody.innerHTML = filtered.map((l, i) => `
+    tbody.innerHTML = paged.map((l, i) => `
         <tr class="table-row">
           <td class="py-2.5 text-center text-white/30 font-mono">${i+1}</td>
           <td class="py-2.5"><div class="text-white/90 font-medium">${l.learner_name}</div><div class="text-white/35 text-[10px]">${l.email || ''}</div></td>
@@ -750,9 +798,13 @@ function filterConsumers() {
           <td class="py-2.5 text-center"><span class="badge ${l.overall==='Active'?'badge-active':'badge-inactive'}">${l.overall}</span></td>
         </tr>`
     ).join('');
+    
+    renderPagination('consumers-pagination', filtered.length, PAGE_SIZE, consumersPage, 'consumersPage', 'filterConsumers');
 }
 
 // ── Cohort rendering ────────────────────────────────────────────────────────
+let cohortsPage = 1;
+
 function _renderCohorts(cohorts) {
     const tbody = document.getElementById('cohorts-table-body');
     const empty = document.getElementById('cohorts-empty');
@@ -761,12 +813,19 @@ function _renderCohorts(cohorts) {
 
     if (!cohortList.length) {
         tbody.innerHTML = '';
+        document.getElementById('cohorts-pagination').innerHTML = '';
         empty.classList.remove('hidden');
         return;
     }
     empty.classList.add('hidden');
+    
+    const PAGE_SIZE = 15;
+    const totalPages = Math.ceil(cohortList.length / PAGE_SIZE);
+    if (cohortsPage > totalPages) cohortsPage = totalPages;
+    const startIdx = (cohortsPage - 1) * PAGE_SIZE;
+    const paged = cohortList.slice(startIdx, startIdx + PAGE_SIZE);
 
-    tbody.innerHTML = cohortList.map(c => {
+    tbody.innerHTML = paged.map(c => {
         const rate = c.total > 0 ? Math.round(c.inactive / c.total * 100) : 0;
         return `
         <tr class="table-row">
@@ -781,6 +840,12 @@ function _renderCohorts(cohorts) {
           <td class="py-3 text-center font-mono text-white/80">${c.avg_time_hours} hrs</td>
         </tr>`;
     }).join('');
+    
+    renderPagination('cohorts-pagination', cohortList.length, PAGE_SIZE, cohortsPage, 'cohortsPage', 'renderCohortsPage');
+}
+
+function renderCohortsPage() {
+    _renderCohorts(_rawData.cohort_breakdown || {});
 }
 </script>
 </body>
