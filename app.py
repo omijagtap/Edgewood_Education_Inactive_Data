@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 import io
+import json
 import time
 import uuid
 import threading
@@ -15,6 +16,9 @@ import sheets_helper
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "edgewood_secret_key_engagement")
 
+TASK_STORE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "task_store")
+os.makedirs(TASK_STORE_DIR, exist_ok=True)
+
 task_progress = {}   # task_id -> latest status string
 task_results  = {}   # task_id -> {"file": BytesIO, "filename": str}
 
@@ -24,10 +28,29 @@ original_print = builtins.print
 def _set_progress(task_id, msg):
     task_progress[task_id] = msg
     original_print(msg)
+    try:
+        status_file = os.path.join(TASK_STORE_DIR, f"{task_id}.json")
+        with open(status_file, "w", encoding="utf-8") as f:
+            json.dump({"status": msg}, f)
+    except Exception:
+        pass
+
+
+def _get_status(task_id):
+    if task_id in task_progress:
+        return task_progress[task_id]
+    status_file = os.path.join(TASK_STORE_DIR, f"{task_id}.json")
+    if os.path.exists(status_file):
+        try:
+            with open(status_file, "r", encoding="utf-8") as f:
+                return json.load(f).get("status", "Unknown Task")
+        except Exception:
+            pass
+    return "Unknown Task"
 
 
 def _process_single_course(client, cid, task_id):
-    """Fetch and process ONE course; return (course_details, processed_students) or raise."""
+    """Fetch and process ONE course; return (course_details, processed_students, published_assignments) or raise."""
     _set_progress(task_id, f"Locating course: {cid}...")
     course = tracker.find_course(client, cid)
     course_details = tracker.extract_course_details(client, course, tracker.COURSE_DURATION_WEEKS)
@@ -51,7 +74,14 @@ def _process_single_course(client, cid, task_id):
         course_details["course_start_date"], tracker.COURSE_DURATION_WEEKS, current_week
     )
 
-    return course_details, processed
+    published_assignments = [
+        a for a in assignments 
+        if a.get("published") is not False 
+        and a.get("omit_from_final_grade") is not True 
+        and a.get("grading_type") != "not_graded"
+    ]
+
+    return course_details, processed, published_assignments
 
 
 def run_audit(task_id, course_codes_input):
@@ -68,7 +98,8 @@ def run_audit(task_id, course_codes_input):
                     res["processed_students"],
                     res["course_details"]["course_code"],
                     res["course_details"]["course_name"],
-                    tracker.COURSE_DURATION_WEEKS
+                    tracker.COURSE_DURATION_WEEKS,
+                    assignments=res.get("assignments", [])
                 )
             _set_progress(task_id, "Refreshing dashboard cache...")
             sheets_helper.get_dashboard_data(force=True)
@@ -113,12 +144,12 @@ def run_audit(task_id, course_codes_input):
                     try:
                         result = future.result()
                         if result:
-                            cd, ps = result
-                            course_results.append({"course_details": cd, "processed_students": ps})
+                            cd, ps, asgns = result
+                            course_results.append({"course_details": cd, "processed_students": ps, "assignments": asgns})
                             _set_progress(task_id, f"[{done}/{n}] Syncing {cd['course_name']} -> Google Sheets...")
                             try:
                                 sheets_helper.push_to_google_sheet(
-                                    ps, cid, cd["course_name"], tracker.COURSE_DURATION_WEEKS
+                                    ps, cid, cd["course_name"], tracker.COURSE_DURATION_WEEKS, assignments=asgns
                                 )
                                 sheets_helper._dashboard_cache["data"] = None
                             except Exception as se:
@@ -132,7 +163,7 @@ def run_audit(task_id, course_codes_input):
                         _set_progress(task_id, f"[{done}/{n}] Error on {cid}: {e}")
 
             if not course_results:
-                task_progress[task_id] = "ERROR: No data retrieved for any course."
+                _set_progress(task_id, "ERROR: No data retrieved for any course.")
                 return
 
             _set_progress(task_id, "Refreshing dashboard cache...")
@@ -143,12 +174,11 @@ def run_audit(task_id, course_codes_input):
 
         # ── Generate Excel ────────────────────────────────────────────────────
         _set_progress(task_id, "Generating Excel engagement report...")
-        tmp = f"_report_{task_id}.xlsx"
-        tracker.create_excel_report(course_results, tmp, tracker.COURSE_DURATION_WEEKS)
+        report_path = os.path.join(TASK_STORE_DIR, f"{task_id}.xlsx")
+        tracker.create_excel_report(course_results, report_path, tracker.COURSE_DURATION_WEEKS)
 
-        with open(tmp, "rb") as f:
+        with open(report_path, "rb") as f:
             buf = io.BytesIO(f.read())
-        os.remove(tmp)
         buf.seek(0)
 
         safe_name = course_ids[0].replace(" ", "_").replace("/", "-")
@@ -157,12 +187,12 @@ def run_audit(task_id, course_codes_input):
             "filename": f"Edgewood_Inactive_Report_{safe_name}.xlsx"
         }
 
-        task_progress[task_id] = "COMPLETE"
+        _set_progress(task_id, "COMPLETE")
 
     except Exception as e:
         import traceback
         original_print(traceback.format_exc())
-        task_progress[task_id] = f"ERROR: {e}"
+        _set_progress(task_id, f"ERROR: {e}")
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -179,24 +209,33 @@ def start_audit():
         return jsonify({"error": "Please enter at least one course code."}), 400
 
     task_id = str(uuid.uuid4())
-    task_progress[task_id] = "Queued..."
+    _set_progress(task_id, "Queued...")
     threading.Thread(target=run_audit, args=(task_id, codes), daemon=True).start()
     return jsonify({"task_id": task_id})
 
 
 @app.route("/status/<task_id>")
 def status(task_id):
-    return jsonify({"status": task_progress.get(task_id, "Unknown Task")})
+    return jsonify({"status": _get_status(task_id)})
 
 
 @app.route("/download/<task_id>")
 def download(task_id):
     if task_id in task_results:
         res = task_results[task_id]
+        res["file"].seek(0)
         return send_file(
             res["file"],
             as_attachment=True,
             download_name=res["filename"],
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    file_path = os.path.join(TASK_STORE_DIR, f"{task_id}.xlsx")
+    if os.path.exists(file_path):
+        return send_file(
+            file_path,
+            as_attachment=True,
+            download_name=f"Edgewood_Inactive_Report_{task_id[:8]}.xlsx",
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     return "File not found or expired.", 404

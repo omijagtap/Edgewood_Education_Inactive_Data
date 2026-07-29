@@ -91,7 +91,7 @@
                 <div class="space-y-4 text-sm">
                     <div class="flex items-start gap-4 group">
                         <div class="w-7 h-7 rounded-full glass-sm flex items-center justify-center text-xs font-bold text-white/70 flex-shrink-0 mt-0.5 group-hover:border-[#EE2C3C] group-hover:text-[#EE2C3C] transition-all">1</div>
-                        <div class="pt-0.5"><strong class="text-white/90">Enter Course IDs</strong><br/><span class="text-white/45 text-xs">Single or comma-separated (e.g. EDU-714-UME9--Summer-2026, 12345)</span></div>
+                        <div class="pt-0.5"><strong class="text-white/90">Enter Course IDs</strong><br/><span class="text-white/45 text-xs">Single or comma-separated (e.g. EDU-900-UAD4-Spring-2020, 12345)</span></div>
                     </div>
                     <div class="flex items-start gap-4 group">
                         <div class="w-7 h-7 rounded-full glass-sm flex items-center justify-center text-xs font-bold text-white/70 flex-shrink-0 mt-0.5 group-hover:border-[#EE2C3C] group-hover:text-[#EE2C3C] transition-all">2</div>
@@ -99,7 +99,7 @@
                     </div>
                     <div class="flex items-start gap-4 group">
                         <div class="w-7 h-7 rounded-full glass-sm flex items-center justify-center text-xs font-bold text-white/70 flex-shrink-0 mt-0.5 group-hover:border-[#EE2C3C] group-hover:text-[#EE2C3C] transition-all">3</div>
-                        <div class="pt-0.5"><strong class="text-white/90">Auto-Sync to Google Sheets</strong><br/><span class="text-white/45 text-xs">Full data (all weeks) pushed to individual tabs + Consolidate</span></div>
+                        <div class="pt-0.5"><strong class="text-white/90">Auto-Sync to Google Sheets</strong><br/><span class="text-white/45 text-xs">Full data (all weeks) pushed to individual course tabs</span></div>
                     </div>
                 </div>
             </div>
@@ -115,7 +115,7 @@
                 <form id="audit-form" class="space-y-5">
                     <div>
                         <label class="block text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2">Course ID(s)</label>
-                        <input id="course-input" type="text" placeholder="e.g. EDU-714-UME9--Summer-2026, 12345"
+                        <input id="course-input" type="text" placeholder="e.g. EDU-900-UAD4-Spring-2020, 12345"
                             class="input-glow w-full bg-black/30 border border-white/10 text-white text-sm rounded-xl px-5 py-4 transition-all placeholder-white/20 font-mono" />
                         <p class="text-white/30 text-[11px] mt-2">Separate multiple course IDs with commas. Type <strong class="text-white/50">MOCK</strong> to test with demo data.</p>
                     </div>
@@ -455,26 +455,46 @@ document.getElementById('audit-form').addEventListener('submit', async e => {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
+        let unknownCount = 0;
         if (_pollInterval) clearInterval(_pollInterval);
         _pollInterval = setInterval(async () => {
             try {
                 const sr = await fetch(`/status/${data.task_id}`);
                 const sd = await sr.json();
-                ptxt.textContent = sd.status;
+                
+                if (sd.status === 'Unknown Task') {
+                    unknownCount++;
+                    if (unknownCount > 5) {
+                        clearInterval(_pollInterval);
+                        ptxt.textContent = 'Task status lost. Please click Run Engagement Audit to re-run.';
+                        ptxt.className = 'text-xs font-mono text-amber-400 truncate';
+                        btn.disabled = false;
+                        lbl.textContent = 'Run Engagement Audit';
+                        icon.classList.remove('hidden');
+                        spin.classList.add('hidden');
+                        return;
+                    }
+                } else {
+                    unknownCount = 0;
+                    ptxt.textContent = sd.status;
+                }
 
                 if (sd.status === 'COMPLETE') {
                     clearInterval(_pollInterval);
-                    ptxt.textContent = 'Audit complete. Downloading report...';
+                    ptxt.innerHTML = `Audit Complete! <a href="/download/${data.task_id}" target="_blank" class="underline font-bold text-emerald-300 ml-1">Download Excel Report</a>`;
                     ptxt.className = 'text-xs font-mono text-emerald-400 truncate';
-                    // Trigger download via hidden iframe so page does not navigate away
+                    
                     const iframe = document.createElement('iframe');
                     iframe.style.display = 'none';
                     iframe.src = `/download/${data.task_id}`;
                     document.body.appendChild(iframe);
                     setTimeout(() => {
-                        document.body.removeChild(iframe);
-                        fullReset('Run New Audit');
-                    }, 3000);
+                        try { document.body.removeChild(iframe); } catch(e){}
+                        btn.disabled = false;
+                        lbl.textContent = 'Run New Audit';
+                        icon.classList.remove('hidden');
+                        spin.classList.add('hidden');
+                    }, 4000);
                 } else if (sd.status.startsWith('ERROR')) {
                     clearInterval(_pollInterval);
                     ptxt.className = 'text-xs font-mono text-red-400 truncate';

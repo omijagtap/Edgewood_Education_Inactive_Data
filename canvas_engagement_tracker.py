@@ -225,6 +225,18 @@ def format_date(dt):
         return "-"
     return dt.strftime("%Y-%m-%d")
 
+CENTRAL_OFFSET = timedelta(hours=-5)
+
+def format_deadline_header(dt):
+    """Formats datetime into US Central Time string format: DD/MMM-YYYY e.g. [02/AUG-2026]."""
+    if not dt:
+        return "[No Due Date]"
+    dt_central = dt + CENTRAL_OFFSET
+    day_str = dt_central.strftime("%d")
+    month_str = dt_central.strftime("%b").upper()
+    year_str = dt_central.strftime("%Y")
+    return f"[{day_str}/{month_str}-{year_str}]"
+
 # ==============================================================================
 # DATA RETRIEVAL WORKFLOW
 # ==============================================================================
@@ -435,7 +447,7 @@ def fetch_course_data(client, course_id, course_code, sections_map, start_date, 
 
     student_weekly_activity = {}
     total_students = len(student_records)
-    print(f"[*] [{course_id}] Fetching weekly activity analytics concurrently (15 threads)...")
+    print(f"[*] [{course_id}] Fetching weekly activity analytics concurrently (35 threads)...")
     
     def fetch_single_student_activity(uid):
         try:
@@ -446,7 +458,7 @@ def fetch_course_data(client, course_id, course_code, sections_map, start_date, 
         except Exception:
             return uid, {"page_views": {}, "participations": []}
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(total_students, 35)) as executor:
         future_to_uid = {
             executor.submit(fetch_single_student_activity, uid): uid
             for uid in student_records
@@ -470,7 +482,7 @@ def fetch_course_data(client, course_id, course_code, sections_map, start_date, 
 # REPORT CALCULATIONS
 # ==============================================================================
 def process_report_data(student_records, assignments, submissions_map, activity_map, course_start, total_weeks, current_course_week):
-    """Computes metrics, weekly breakdowns, and simplified classification categories for students."""
+    """Computes metrics, per-assignment Yes/No submission maps, weekly breakdowns, and simplified classification categories for students."""
     processed_students = []
     current_time = datetime.datetime.now(timezone.utc)
     
@@ -480,23 +492,29 @@ def process_report_data(student_records, assignments, submissions_map, activity_
         w_end = course_start + timedelta(weeks=w) - timedelta(seconds=1)
         week_ranges.append((w, w_start, w_end))
 
-    active_assignment_ids = {a["id"] for a in assignments}
+    # Filter to only active, published, and graded assignments
+    published_assignments = [
+        a for a in assignments 
+        if a.get("published") is not False 
+        and a.get("omit_from_final_grade") is not True 
+        and a.get("grading_type") != "not_graded"
+    ]
+    active_assignment_ids = {a["id"] for a in published_assignments}
 
     for user_id, student in student_records.items():
         student_subs = submissions_map.get(user_id, [])
         student_subs = [s for s in student_subs if s.get("assignment_id") in active_assignment_ids]
 
-        total_assignments = len(assignments)
+        total_assignments = len(published_assignments)
         submitted_count = 0
         missing_count = 0
         overdue_count = 0
         on_time_count = 0
 
         sub_dict = {s["assignment_id"]: s for s in student_subs}
-        missed_names = []
-        on_time_names = []
+        assignment_submissions = {}
 
-        for assign in assignments:
+        for assign in published_assignments:
             assign_id = assign["id"]
             assign_name = assign.get("name", "Unknown Assignment")
             due_at = parse_iso_datetime(assign.get("due_at"))
@@ -512,22 +530,20 @@ def process_report_data(student_records, assignments, submissions_map, activity_
                 submission_type = sub.get("submission_type")
                 is_missing = sub.get("missing", False) or False
                 
-                # Check if this assignment requires an online submission
                 sub_types = assign.get("submission_types", [])
                 is_online = any(t in ["online_upload", "online_text_entry", "online_url", "media_recording", "discussion_topic", "online_quiz", "external_tool"] for t in sub_types)
                 
                 if workflow_state not in ["unsubmitted", "unsubmitted_late"] and not is_missing:
                     if is_online:
-                        # For online assignments, student must have submitted online
                         if (submitted_at is not None) or (submission_type is not None):
                             has_submitted = True
                             is_late = sub.get("late", False) or False
                     else:
-                        # For offline assignments (like on_paper or none), they don't submit online.
-                        # We count it as submitted if it has been graded/scored and is not marked as missing.
                         if (sub.get("score") is not None) or (submitted_at is not None):
                             has_submitted = True
                             is_late = sub.get("late", False) or False
+
+            assignment_submissions[assign_id] = "Yes" if has_submitted else "No"
 
             if due_at:
                 due_passed = due_at < current_time
@@ -537,17 +553,14 @@ def process_report_data(student_records, assignments, submissions_map, activity_
                         pass
                     else:
                         on_time_count += 1
-                        on_time_names.append(assign_name)
                 else:
                     if due_passed:
                         missing_count += 1
                         overdue_count += 1
-                        missed_names.append(assign_name)
             else:
                 if has_submitted:
                     submitted_count += 1
                     on_time_count += 1
-                    on_time_names.append(assign_name)
 
         activity = activity_map.get(user_id, {"page_views": {}, "participations": []})
         page_views = activity.get("page_views", {})
@@ -616,7 +629,6 @@ def process_report_data(student_records, assignments, submissions_map, activity_
         engagement_hours = total_time_seconds / 3600.0
         has_logged_in = (overall_last_activity is not None) and (total_time_seconds > 0)
 
-        # Calculate Weeks 1-4 combined engagement
         w1_to_w4_seconds = sum(
             weekly_stats[w]["time_spent"]
             for w in range(1, 5)
@@ -624,16 +636,16 @@ def process_report_data(student_records, assignments, submissions_map, activity_
         )
         w1_to_w4_hours = w1_to_w4_seconds / 3600.0
 
-        # Classification Logic based on user's exact simplified criteria
+        # Classification Logic
         if not has_logged_in or (total_course_activities == 0 and total_time_seconds == 0):
             category = "NO ACTIVITY"
             comment = "Learner has not logged into the platform. There is no activity."
         
-        elif overdue_count > 0:
+        elif overdue_count > 0 or (total_assignments > 0 and submitted_count == 0):
             category = "MISSED SUBMISSION"
             comment = "Learner has past due assignments or unsubmitted."
             
-        elif engagement_hours < 1.0 and overdue_count == 0 and (submitted_count == on_time_count or total_assignments == 0):
+        elif engagement_hours < 1.0 and overdue_count == 0 and (submitted_count > 0 or total_assignments == 0):
             category = "LOW ACTIVITY - ASSIGNMENTS COMPLETED"
             comment = "Engagement is less than 1 hour but assignments completed on time."
             
@@ -645,7 +657,7 @@ def process_report_data(student_records, assignments, submissions_map, activity_
             category = "ACTIVE"
             comment = "Good engagement and on track."
 
-        overall_activity = "Active" if category in ["ACTIVE", "LOW ACTIVITY - ASSIGNMENTS COMPLETED"] else "Inactive"
+        overall_activity = "Active" if (category in ["ACTIVE", "LOW ACTIVITY - ASSIGNMENTS COMPLETED"] and (submitted_count > 0 or total_assignments == 0)) else "Inactive"
 
         cohorts_str = ", ".join(sorted(list(student["cohorts"])))
         student_data = {
@@ -657,6 +669,7 @@ def process_report_data(student_records, assignments, submissions_map, activity_
             "last_activity_timestamp": overall_last_activity.replace(tzinfo=None) if overall_last_activity else None,
             "total_engagement_seconds": total_time_seconds,
             "total_assignments": total_assignments,
+            "assignment_submissions": assignment_submissions,
             "submitted_assignments": submitted_count,
             "missing_assignments": missing_count,
             "overdue_assignments": overdue_count,
@@ -928,11 +941,15 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
         ws_detail.views.sheetView[0].showGridLines = True
         ws_detail.freeze_panes = "D3"
 
+        # Assignments list for this course
+        course_assignments = res.get("assignments", [])
+        num_asgn_cols = len(course_assignments)
+
         # Headers Setup
         headers_row1 = [
             ("Learner Information", 4),
             ("Activity Summary", 2),
-            ("Assignment Tracking", 5),
+            ("Assignment Submissions", 1 + num_asgn_cols),
             ("Engagement Classification", 3),
         ]
         
@@ -945,15 +962,27 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
         headers_row2 = [
             "Cohort", "Learner Name", "Official Email ID", "Enrollment Status",
             "Last Activity Timestamp", "Total Time Spent (HH:MM:SS)",
-            "Total Assignments", "Submitted Assignments", "Missing Assignments", "Overdue Assignments", "On-Time Submissions",
-            "Engagement Category", "Learner's Overall Activity", "Automated Comments"
+            "Total Assignments"
         ]
+
+        for a in course_assignments:
+            a_name = a.get("name", "Assignment")
+            due_at = parse_iso_datetime(a.get("due_at"))
+            deadline_str = format_deadline_header(due_at)
+            headers_row2.append(f"{a_name} {deadline_str}")
+
+        headers_row2.extend([
+            "Engagement Category", "Learner's Overall Activity", "Automated Comments"
+        ])
         
         for w in range(1, duration_weeks + 1):
             headers_row2.extend([
                 f"W{w} Duration (HH:MM:SS)",
                 f"W{w} Target Status"
             ])
+
+        ws_detail.row_dimensions[1].height = 26
+        ws_detail.row_dimensions[2].height = 34
 
         # Write Group Headers (Row 1)
         col_idx = 1
@@ -978,71 +1007,86 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
             cell = ws_detail.cell(row=2, column=c_idx, value=col_name)
             cell.font = Font(name="Segoe UI", size=9, bold=True, color="FFFFFF")
             cell.fill = PatternFill(start_color=SECONDARY_COLOR, end_color=SECONDARY_COLOR, fill_type="solid")
-            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=False)
             cell.border = thin_border
 
         # Write Student Rows (Row 3+)
         start_row = 3
         for s_idx, student in enumerate(processed_students):
             curr_s_row = start_row + s_idx
+            ws_detail.row_dimensions[curr_s_row].height = 22
             row_fill = PatternFill(start_color=ZEBRA_COLOR, end_color=ZEBRA_COLOR, fill_type="solid") if s_idx % 2 == 1 else PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
             
             # Info fields
-            ws_detail.cell(row=curr_s_row, column=1, value=student["cohort"]).alignment = Alignment(horizontal="left")
-            ws_detail.cell(row=curr_s_row, column=2, value=student["name"]).alignment = Alignment(horizontal="left")
-            ws_detail.cell(row=curr_s_row, column=3, value=student["email"]).alignment = Alignment(horizontal="left")
-            ws_detail.cell(row=curr_s_row, column=4, value=(student["status"] or "active").capitalize()).alignment = Alignment(horizontal="center")
+            ws_detail.cell(row=curr_s_row, column=1, value=student["cohort"]).alignment = Alignment(horizontal="left", vertical="center")
+            ws_detail.cell(row=curr_s_row, column=2, value=student["name"]).alignment = Alignment(horizontal="left", vertical="center")
+            ws_detail.cell(row=curr_s_row, column=3, value=student["email"]).alignment = Alignment(horizontal="left", vertical="center")
+            ws_detail.cell(row=curr_s_row, column=4, value=(student["status"] or "active").capitalize()).alignment = Alignment(horizontal="center", vertical="center")
             
             # Last Activity
             last_act_val = student["last_activity_timestamp"]
             if isinstance(last_act_val, datetime.datetime) and last_act_val.tzinfo is not None:
                 last_act_val = last_act_val.replace(tzinfo=None)
             last_act_cell = ws_detail.cell(row=curr_s_row, column=5, value=last_act_val)
-            last_act_cell.alignment = Alignment(horizontal="center")
+            last_act_cell.alignment = Alignment(horizontal="center", vertical="center")
             if isinstance(last_act_val, datetime.datetime):
                 last_act_cell.number_format = 'yyyy-mm-dd hh:mm:ss'
                 
             # Time Spent
-            ws_detail.cell(row=curr_s_row, column=6, value=format_duration(student["total_engagement_seconds"])).alignment = Alignment(horizontal="center")
+            ws_detail.cell(row=curr_s_row, column=6, value=format_duration(student["total_engagement_seconds"])).alignment = Alignment(horizontal="center", vertical="center")
             
-            # Assignment columns
-            ws_detail.cell(row=curr_s_row, column=7, value=student["total_assignments"]).alignment = Alignment(horizontal="center")
-            ws_detail.cell(row=curr_s_row, column=8, value=student["submitted_assignments"]).alignment = Alignment(horizontal="center")
-            ws_detail.cell(row=curr_s_row, column=9, value=student["missing_assignments"]).alignment = Alignment(horizontal="center")
-            ws_detail.cell(row=curr_s_row, column=10, value=student["overdue_assignments"]).alignment = Alignment(horizontal="center")
-            ws_detail.cell(row=curr_s_row, column=11, value=student["on_time_submissions"]).alignment = Alignment(horizontal="center")
+            # Total Assignments count
+            ws_detail.cell(row=curr_s_row, column=7, value=student["total_assignments"]).alignment = Alignment(horizontal="center", vertical="center")
             
+            # Individual Assignment Yes/No columns
+            curr_col = 8
+            subs_map = student.get("assignment_submissions", {})
+            for a in course_assignments:
+                sub_val = subs_map.get(a["id"], "No")
+                cell = ws_detail.cell(row=curr_s_row, column=curr_col, value=sub_val)
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+                cell.border = thin_border
+                if sub_val == "Yes":
+                    cell.fill = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid")
+                    cell.font = Font(name="Segoe UI", size=9, bold=True, color="166534")
+                else:
+                    cell.fill = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
+                    cell.font = Font(name="Segoe UI", size=9, bold=True, color="991B1B")
+                curr_col += 1
+
             # Engagement category
-            cat_cell = ws_detail.cell(row=curr_s_row, column=12, value=student["category"])
-            cat_cell.alignment = Alignment(horizontal="center")
+            cat_cell = ws_detail.cell(row=curr_s_row, column=curr_col, value=student["category"])
+            cat_cell.alignment = Alignment(horizontal="center", vertical="center")
             if student["category"] in CATEGORY_STYLES:
                 style = CATEGORY_STYLES[student["category"]]
                 cat_cell.fill = PatternFill(start_color=style["fill"], end_color=style["fill"], fill_type="solid")
                 cat_cell.font = Font(name="Segoe UI", size=10, bold=True, color=style["font"])
+            curr_col += 1
                 
             # Overall Activity
-            oa_cell = ws_detail.cell(row=curr_s_row, column=13, value=student["overall_activity"])
-            oa_cell.alignment = Alignment(horizontal="center")
+            oa_cell = ws_detail.cell(row=curr_s_row, column=curr_col, value=student["overall_activity"])
+            oa_cell.alignment = Alignment(horizontal="center", vertical="center")
             if student["overall_activity"] == "Active":
                 oa_cell.fill = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid")
                 oa_cell.font = Font(name="Segoe UI", size=10, bold=True, color="166534")
             else:
                 oa_cell.fill = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
                 oa_cell.font = Font(name="Segoe UI", size=10, bold=True, color="991B1B")
+            curr_col += 1
             
             # Comments
-            ws_detail.cell(row=curr_s_row, column=14, value=student["comment"]).alignment = Alignment(horizontal="left")
-            
-            # Apply basic layout borders/fonts to student info cells
-            for c in range(1, 15):
+            ws_detail.cell(row=curr_s_row, column=curr_col, value=student["comment"]).alignment = Alignment(horizontal="left", vertical="center")
+            curr_col += 1
+
+            # Apply basic layout borders/fonts to base student info cells (cols 1-7)
+            for c in range(1, 8):
                 cell = ws_detail.cell(row=curr_s_row, column=c)
                 cell.border = thin_border
-                if c != 14:  # Keep specific fill/font for Category cell
-                    cell.fill = row_fill
-                    cell.font = Font(name="Segoe UI", size=10)
+                cell.fill = row_fill
+                cell.font = Font(name="Segoe UI", size=10)
 
             # Weekly Columns
-            c_offset = 15
+            c_offset = curr_col
             for w in range(1, duration_weeks + 1):
                 w_data = student["weekly_data"].get(w, {"time_spent": "-", "status": "-"})
                 w_time = w_data["time_spent"]
@@ -1051,14 +1095,14 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
                 # Duration
                 dur_val = format_duration(w_time) if isinstance(w_time, (int, float)) else w_time
                 dur_cell = ws_detail.cell(row=curr_s_row, column=c_offset, value=dur_val)
-                dur_cell.alignment = Alignment(horizontal="center")
+                dur_cell.alignment = Alignment(horizontal="center", vertical="center")
                 dur_cell.border = thin_border
                 dur_cell.fill = row_fill
                 dur_cell.font = Font(name="Segoe UI", size=10)
                 
                 # Status
                 status_cell = ws_detail.cell(row=curr_s_row, column=c_offset + 1, value=w_status)
-                status_cell.alignment = Alignment(horizontal="center")
+                status_cell.alignment = Alignment(horizontal="center", vertical="center")
                 status_cell.border = thin_border
                 
                 if w_status in WEEKLY_STATUS_STYLES:
@@ -1071,7 +1115,7 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
                     
                 c_offset += 2
 
-        # Auto-fit columns
+        # Auto-fit columns dynamically based on header and data text length
         for col in ws_detail.columns:
             max_len = 0
             for cell in col:
@@ -1081,18 +1125,7 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
                 if len(val_str) > max_len:
                     max_len = len(val_str)
             col_letter = get_column_letter(col[0].column)
-            ws_detail.column_dimensions[col_letter].width = max(max_len + 4, 10)
-
-        # Custom layouts
-        ws_detail.column_dimensions['A'].width = 16  # Cohort
-        ws_detail.column_dimensions['B'].width = 22  # Name
-        ws_detail.column_dimensions['C'].width = 26  # Email
-        ws_detail.column_dimensions['D'].width = 18  # Enrollment Status
-        ws_detail.column_dimensions['E'].width = 22  # Last Activity Timestamp
-        ws_detail.column_dimensions['F'].width = 24  # Total Time Spent
-        ws_detail.column_dimensions['L'].width = 25  # Category
-        ws_detail.column_dimensions['M'].width = 25  # Overall Activity
-        ws_detail.column_dimensions['N'].width = 45  # Comments
+            ws_detail.column_dimensions[col_letter].width = max(max_len + 8, 28)
 
         # Enable Auto-Filter on detail sheet
         last_col_letter = get_column_letter(col_idx - 1)

@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import datetime
 import gspread
 from google.oauth2 import service_account
 from gspread_formatting import *
@@ -76,11 +77,18 @@ def get_google_client():
         "https://www.googleapis.com/auth/drive",
     ]
     raw = os.getenv("GOOGLE_CREDS_JSON")
+    creds = None
     if raw:
+        raw_clean = raw.strip()
+        if (raw_clean.startswith("'") and raw_clean.endswith("'")) or (raw_clean.startswith('"') and raw_clean.endswith('"')):
+            raw_clean = raw_clean[1:-1].strip()
         try:
-            creds = service_account.Credentials.from_service_account_info(json.loads(raw), scopes=scopes)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Failed to parse GOOGLE_CREDS_JSON. Ensure it is valid JSON. Error: {e}")
+            creds = service_account.Credentials.from_service_account_info(json.loads(raw_clean), scopes=scopes)
+        except Exception as e:
+            if os.path.exists(CREDENTIALS_PATH):
+                creds = service_account.Credentials.from_service_account_file(CREDENTIALS_PATH, scopes=scopes)
+            else:
+                raise ValueError(f"Failed to parse GOOGLE_CREDS_JSON: {e}")
     elif os.path.exists(CREDENTIALS_PATH):
         creds = service_account.Credentials.from_service_account_file(CREDENTIALS_PATH, scopes=scopes)
     else:
@@ -102,79 +110,99 @@ def _safe_title(sis_id):
 
 
 # ── Main push ─────────────────────────────────────────────────────────────────
-def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6):
+def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assignments=None):
     """Push FULL data (matching Excel) to a course-specific tab. No Consolidate tab."""
     print("  Connecting to Google Sheets...")
     gc  = get_google_client()
     sh  = gc.open_by_key(SPREADSHEET_ID)
     tab = _safe_title(sis_id)
 
-    # Dynamic column count: base 15 + 2 per week
-    total_cols = 15 + duration_weeks * 2
+    assignments = assignments or []
+    num_asgn_cols = len(assignments)
+    total_cols = 9 + num_asgn_cols + 2 + (duration_weeks * 2)
 
-    # ── FIX: Create the course tab FIRST, then clean up stale tabs ────────────
-    # We must never delete the last remaining sheet — Google Sheets API will error.
-    # Strategy: add the new course tab first, THEN delete Consolidate + old course tab.
-
-    # 1. Delete the old course tab if it exists (it won't be the last sheet
-    #    because Consolidate is still there)
     try:
         old_ws = sh.worksheet(tab)
-        print(f"  Worksheet '{tab}' exists. Deleting old version...")
-        sh.del_worksheet(old_ws)
     except gspread.exceptions.WorksheetNotFound:
-        pass
+        old_ws = None
 
-    # 2. Create fresh course tab
-    print(f"  Creating worksheet '{tab}'...")
-    ws = sh.add_worksheet(title=tab, rows=str(max(500, len(flat_rows)+10)), cols=str(total_cols + 2))
+    if old_ws:
+        all_ws = sh.worksheets()
+        if len(all_ws) > 1:
+            print(f"  Worksheet '{tab}' exists. Deleting old version...")
+            sh.del_worksheet(old_ws)
+            print(f"  Creating worksheet '{tab}'...")
+            ws = sh.add_worksheet(title=tab, rows=str(max(500, len(flat_rows)+10)), cols=str(total_cols + 2))
+        else:
+            print(f"  Worksheet '{tab}' is the only tab. Updating via temp worksheet...")
+            temp_title = f"{tab}_new"
+            ws = sh.add_worksheet(title=temp_title, rows=str(max(500, len(flat_rows)+10)), cols=str(total_cols + 2))
+            sh.del_worksheet(old_ws)
+            ws.update_title(tab)
+    else:
+        print(f"  Creating worksheet '{tab}'...")
+        ws = sh.add_worksheet(title=tab, rows=str(max(500, len(flat_rows)+10)), cols=str(total_cols + 2))
 
-    # 3. NOW it is safe to remove stale Consolidate tab (course tab exists above)
     try:
         stale = sh.worksheet("Consolidate")
         sh.del_worksheet(stale)
         print("  Removed stale Consolidate tab.")
     except gspread.exceptions.WorksheetNotFound:
-        pass  # already clean
+        pass
 
-    # ── Build header rows ────────────────────────────────────────────────────
-    # Row 1: group headers
     grp_row1 = (
         ["Course Information"] * 2
         + ["Learner Information"] * 4
         + ["Activity Summary"] * 2
-        + ["Assignment Tracking"] * 5
+        + ["Assignment Submissions"] * (1 + num_asgn_cols)
         + ["Engagement Classification"] * 2
     )
     for w in range(1, duration_weeks + 1):
         grp_row1 += [f"Week {w}"] * 2
 
-    # Row 2: column headers
     hdr_row2 = [
         "Course ID", "Course Name",
         "Cohort", "Learner Name", "Official Email ID", "Enrollment Status",
         "Last Activity Timestamp", "Total Time Spent (HH:MM:SS)",
-        "Total Assignments", "Submitted", "Missing", "Overdue", "On-Time Submissions",
-        "Engagement Category", "Overall Activity"
+        "Total Assignments"
     ]
+
+    for a in assignments:
+        a_name = a.get("name", "Assignment")
+        due_at = a.get("due_at")
+        if due_at and not isinstance(due_at, datetime.datetime):
+            try:
+                from canvas_engagement_tracker import parse_iso_datetime
+                due_at = parse_iso_datetime(due_at)
+            except Exception:
+                due_at = None
+        from canvas_engagement_tracker import format_deadline_header
+        hdr_row2.append(f"{a_name} {format_deadline_header(due_at)}")
+
+    hdr_row2.extend(["Engagement Category", "Overall Activity"])
     for w in range(1, duration_weeks + 1):
         hdr_row2 += [f"W{w} Duration (HH:MM:SS)", f"W{w} Status"]
 
-    # ── Build data rows ──────────────────────────────────────────────────────
     rows = [grp_row1, hdr_row2]
     for r in flat_rows:
         last_act = r.get("last_activity_timestamp")
-        last_str = last_act.strftime("%Y-%m-%d %H:%M:%S") if last_act else "N/A"
+        last_str = last_act.strftime("%Y-%m-%d %H:%M:%S") if (last_act and hasattr(last_act, "strftime")) else (str(last_act) if last_act else "N/A")
         row = [
             sis_id, course_name,
             r.get("cohort", "N/A"), r.get("name", "N/A"),
             r.get("email", "N/A"), r.get("status", "N/A"),
             last_str, _hms(r.get("total_engagement_seconds", 0)),
-            r.get("total_assignments", 0), r.get("submitted_assignments", 0),
-            r.get("missing_assignments", 0), r.get("overdue_assignments", 0),
-            r.get("on_time_submissions", 0),
-            r.get("category", "N/A"), r.get("overall_activity", "N/A"),
+            r.get("total_assignments", len(assignments))
         ]
+
+        subs_map = r.get("assignment_submissions", {})
+        for a in assignments:
+            row.append(subs_map.get(a["id"], "No"))
+
+        row.extend([
+            r.get("category", "N/A"), r.get("overall_activity", "N/A")
+        ])
+
         wd = r.get("weekly_data", {})
         for w in range(1, duration_weeks + 1):
             wk = wd.get(w, {})
@@ -184,17 +212,15 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6):
             row.append(str(s))
         rows.append(row)
 
-    # Write all at once
     end_col_letter = _col_letter(total_cols)
     ws.update(range_name=f"A1:{end_col_letter}{len(rows)}", values=rows)
 
-    # ── Format ───────────────────────────────────────────────────────────────
     print(f"  Formatting '{tab}'...")
     n_data = len(rows)
 
     with batch_updater(sh) as b:
-        b.format_cell_range(ws, f"A1:{end_col_letter}1", _fmt(C_NAVY, C_WHITE, bold=True, size=10))
-        b.format_cell_range(ws, f"A2:{end_col_letter}2", _fmt(C_SLATE, C_WHITE, bold=True, size=9))
+        b.format_cell_range(ws, f"A1:{end_col_letter}1", CellFormat(backgroundColor=_color(C_NAVY), textFormat=TextFormat(bold=True, foregroundColor=_color(C_WHITE)), horizontalAlignment="CENTER", verticalAlignment="MIDDLE"))
+        b.format_cell_range(ws, f"A2:{end_col_letter}2", CellFormat(backgroundColor=_color(C_SLATE), textFormat=TextFormat(bold=True, foregroundColor=_color(C_WHITE)), horizontalAlignment="CENTER", verticalAlignment="MIDDLE", wrapStrategy="CLIP"))
 
         if n_data > 2:
             for i in range(3, n_data + 1):
@@ -204,7 +230,22 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6):
                                                borders=_border(),
                                                verticalAlignment="MIDDLE"))
 
-            cat_col = "N"
+            for idx_a in range(num_asgn_cols):
+                col_let = _col_letter(10 + idx_a)
+                for i, r in enumerate(flat_rows, start=3):
+                    a_id = assignments[idx_a]["id"]
+                    sub_val = r.get("assignment_submissions", {}).get(a_id, "No")
+                    bg_color = C_GREEN_BG if sub_val == "Yes" else C_RED_BG
+                    fg_color = C_GREEN_FG if sub_val == "Yes" else C_RED_FG
+                    b.format_cell_range(ws, f"{col_let}{i}",
+                                        CellFormat(backgroundColor=_color(bg_color),
+                                                   textFormat=TextFormat(bold=True, foregroundColor=_color(fg_color)),
+                                                   horizontalAlignment="CENTER",
+                                                   verticalAlignment="MIDDLE",
+                                                   borders=_border()))
+
+            cat_col_idx = 10 + num_asgn_cols
+            cat_col = _col_letter(cat_col_idx)
             for i, r in enumerate(flat_rows, start=3):
                 cat = r.get("category", "")
                 style = CAT_STYLES.get(cat, {"bg": C_WHITE, "fg": C_SLATE})
@@ -212,20 +253,23 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6):
                                     CellFormat(backgroundColor=_color(style["bg"]),
                                                textFormat=TextFormat(bold=True, foregroundColor=_color(style["fg"])),
                                                horizontalAlignment="CENTER",
+                                               verticalAlignment="MIDDLE",
                                                borders=_border()))
 
+            oa_col = _col_letter(cat_col_idx + 1)
             for i, r in enumerate(flat_rows, start=3):
                 oa = r.get("overall_activity", "")
                 bg = C_GREEN_BG if oa == "Active" else C_RED_BG
                 fg = C_GREEN_FG if oa == "Active" else C_RED_FG
-                b.format_cell_range(ws, f"O{i}",
+                b.format_cell_range(ws, f"{oa_col}{i}",
                                     CellFormat(backgroundColor=_color(bg),
                                                textFormat=TextFormat(bold=True, foregroundColor=_color(fg)),
                                                horizontalAlignment="CENTER",
+                                               verticalAlignment="MIDDLE",
                                                borders=_border()))
 
             for w in range(1, duration_weeks + 1):
-                status_col_idx = 15 + (w - 1) * 2 + 2
+                status_col_idx = cat_col_idx + 1 + (w - 1) * 2 + 2
                 status_col = _col_letter(status_col_idx)
                 for i, r in enumerate(flat_rows, start=3):
                     wk = r.get("weekly_data", {}).get(w, {})
@@ -235,10 +279,38 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6):
                                         CellFormat(backgroundColor=_color(style["bg"]),
                                                    textFormat=TextFormat(foregroundColor=_color(style["fg"]), bold=True),
                                                    horizontalAlignment="CENTER",
+                                                   verticalAlignment="MIDDLE",
                                                    borders=_border()))
 
     ws.freeze(rows=2)
-    ws.columns_auto_resize(0, min(total_cols - 1, 25))
+    ws.columns_auto_resize(0, total_cols)
+    try:
+        dim_reqs = []
+        dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 0, "endIndex": 2}, "properties": {"pixelSize": 180}, "fields": "pixelSize"}})
+        dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 2, "endIndex": 6}, "properties": {"pixelSize": 220}, "fields": "pixelSize"}})
+        dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 6, "endIndex": 9}, "properties": {"pixelSize": 180}, "fields": "pixelSize"}})
+        if num_asgn_cols > 0:
+            dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 9, "endIndex": 9 + num_asgn_cols}, "properties": {"pixelSize": 280}, "fields": "pixelSize"}})
+        c_st = 9 + num_asgn_cols
+        dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": c_st, "endIndex": c_st + 2}, "properties": {"pixelSize": 280}, "fields": "pixelSize"}})
+        sh.batch_update({"requests": dim_reqs})
+    except Exception as dim_err:
+        print(f"  Note: Column width adjustment: {dim_err}")
+
+    try:
+        stale_dash = sh.worksheet("Dashboard")
+        sh.del_worksheet(stale_dash)
+        print("  Removed stale Dashboard tab.")
+    except Exception:
+        pass
+
+    try:
+        stale_con = sh.worksheet("Consolidate")
+        sh.del_worksheet(stale_con)
+        print("  Removed stale Consolidate tab.")
+    except Exception:
+        pass
+
     print(f"  Sheet tab '{tab}' updated successfully!")
 
 
@@ -330,7 +402,7 @@ def get_dashboard_data(force=False):
     course_tabs   = []
     with ThreadPoolExecutor(max_workers=10) as ex:
         for title, vals in ex.map(_fetch_ws, sh.worksheets()):
-            if title == "Consolidate":
+            if title == "Consolidate" or "Assignments" in title:
                 continue          # ignore any leftover Consolidate tab
             if vals and len(vals) > 2:
                 course_tabs.append(title)
@@ -349,7 +421,7 @@ def get_dashboard_data(force=False):
     top_learners = []   # highest time spent
 
     for row in all_data_rows:
-        if len(row) < 15:
+        if len(row) < 9:
             continue
         course_id    = row[0].strip()
         course_name  = row[1].strip()
@@ -360,15 +432,26 @@ def get_dashboard_data(force=False):
         last_act     = row[6].strip()
         time_str     = row[7].strip()
         total_asgn   = _safe_int(row[8])
-        submitted    = _safe_int(row[9])
-        missing      = _safe_int(row[10])
-        overdue      = _safe_int(row[11])
-        on_time      = _safe_int(row[12])
-        category     = row[13].strip()
-        overall      = row[14].strip()
 
         if not learner_name:
             continue
+
+        if len(row) > 9 and row[9].strip().isdigit():
+            # Legacy format with numeric submission counts
+            submitted = _safe_int(row[9])
+            missing   = _safe_int(row[10])
+            overdue   = _safe_int(row[11])
+            category  = row[13].strip() if len(row) > 13 else "N/A"
+            overall   = row[14].strip() if len(row) > 14 else "N/A"
+        else:
+            # New format with per-assignment Yes/No columns
+            asgn_cells = row[9 : 9 + total_asgn] if len(row) >= 9 + total_asgn else row[9:]
+            submitted  = sum(1 for c in asgn_cells if c.strip().lower() == "yes")
+            missing    = sum(1 for c in asgn_cells if c.strip().lower() == "no")
+            overdue    = missing
+            cat_idx    = 9 + total_asgn
+            category   = row[cat_idx].strip() if len(row) > cat_idx else "N/A"
+            overall    = row[cat_idx + 1].strip() if len(row) > cat_idx + 1 else "N/A"
 
         total_courses_set.add(course_id)
         total_missing    += missing
