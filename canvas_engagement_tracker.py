@@ -629,35 +629,35 @@ def process_report_data(student_records, assignments, submissions_map, activity_
         engagement_hours = total_time_seconds / 3600.0
         has_logged_in = (overall_last_activity is not None) and (total_time_seconds > 0)
 
-        w1_to_w4_seconds = sum(
+        w1_to_w2_seconds = sum(
             weekly_stats[w]["time_spent"]
-            for w in range(1, 5)
+            for w in range(1, 3)
             if w in weekly_stats and isinstance(weekly_stats[w]["time_spent"], (int, float))
         )
-        w1_to_w4_hours = w1_to_w4_seconds / 3600.0
+        w1_to_w2_hours = w1_to_w2_seconds / 3600.0
 
         # Classification Logic
         if not has_logged_in or (total_course_activities == 0 and total_time_seconds == 0):
-            category = "NO ACTIVITY"
+            category = "In Active"
             comment = "Learner has not logged into the platform. There is no activity."
         
-        elif overdue_count > 0 or (total_assignments > 0 and submitted_count == 0):
+        elif total_assignments > 0 and submitted_count == 0:
+            category = "No Submission"
+            comment = "No Submisted any Signle Assignmnet"
+            
+        elif overdue_count > 0 or missing_count > 0:
             category = "MISSED SUBMISSION"
-            comment = "Learner has past due assignments or unsubmitted."
+            comment = "Few Assignment Missed"
             
-        elif engagement_hours < 1.0 and overdue_count == 0 and (submitted_count > 0 or total_assignments == 0):
-            category = "LOW ACTIVITY - ASSIGNMENTS COMPLETED"
-            comment = "Engagement is less than 1 hour but assignments completed on time."
-            
-        elif total_weeks >= 4 and current_course_week >= 4 and w1_to_w4_hours < 1.0:
+        elif current_course_week >= 2 and w1_to_w2_hours < 1.0:
             category = "NOT ACTIVE"
-            comment = "Total combined engagement of Week 1 to Week 4 is less than 1 hour (applicable in or after Week 4)."
+            comment = "Total combined engagement of Week 1 to Week 2 is less than 1 hour (applicable in or after Week 2)."
             
         else:
             category = "ACTIVE"
             comment = "Good engagement and on track."
 
-        overall_activity = "Active" if (category in ["ACTIVE", "LOW ACTIVITY - ASSIGNMENTS COMPLETED"] and (submitted_count > 0 or total_assignments == 0)) else "Inactive"
+        overall_activity = "Active" if category == "ACTIVE" else "Inactive"
 
         cohorts_str = ", ".join(sorted(list(student["cohorts"])))
         student_data = {
@@ -724,10 +724,12 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
     
     CATEGORY_STYLES = {
         "ACTIVE": {"fill": "DCFCE7", "font": "166534"},
-        "LOW ACTIVITY - ASSIGNMENTS COMPLETED": {"fill": "E0F2FE", "font": "075985"},
         "MISSED SUBMISSION": {"fill": "FEF3C7", "font": "92400E"},
         "NOT ACTIVE": {"fill": "FEE2E2", "font": "991B1B"},
-        "NO ACTIVITY": {"fill": "F1F5F9", "font": "475569"}
+        "In Active": {"fill": "E0F2FE", "font": "075985"},
+        "No Submission": {"fill": "F1F5F9", "font": "475569"},
+        "NO ACTIVITY": {"fill": "E0F2FE", "font": "075985"},
+        "LOW ACTIVITY - ASSIGNMENTS COMPLETED": {"fill": "F1F5F9", "font": "475569"}
     }
 
     WEEKLY_STATUS_STYLES = {
@@ -771,7 +773,7 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
     
     headers_dash = [
         "Course Code", "Course Name", "Total Enrolled", 
-        "ACTIVE", "LOW ACTIVITY - ASSIGNMENTS COMPLETED", "MISSED SUBMISSION", "NOT ACTIVE", "NO ACTIVITY"
+        "ACTIVE", "MISSED SUBMISSION", "NOT ACTIVE", "In Active", "No Submission"
     ]
     
     for c_idx, col_name in enumerate(headers_dash, 1):
@@ -895,11 +897,11 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
     curr_row += 1
     
     guidelines = [
-        ("NO ACTIVITY", "Learner has not logged into the platform. There is no activity."),
-        ("MISSED SUBMISSION", "Learner has past due assignments or unsubmitted."),
-        ("NOT ACTIVE", "Total combined engagement of Week 1 to Week 4 is less than 1 hour (applicable in or after Week 4)."),
-        ("LOW ACTIVITY - ASSIGNMENTS COMPLETED", "Engagement is less than 1 hour but assignments completed on time."),
-        ("ACTIVE", "Good engagement and on track.")
+        ("In Active", "Learner has not logged into the platform. There is no activity."),
+        ("MISSED SUBMISSION", "Few Assignment Missed"),
+        ("NOT ACTIVE", "Total combined engagement of Week 1 to Week 2 is less than 1 hour (applicable in or after Week 2)."),
+        ("ACTIVE", "Good engagement and on track."),
+        ("No Submission", "No Submisted any Signle Assignmnet")
     ]
     
     for cat_name, desc in guidelines:
@@ -1376,7 +1378,7 @@ def generate_mock_data(duration_weeks=6):
             "missed_names": "None",
             "on_time_names": "None",
             "category": "ACTIVE",
-            "overall_activity": "Active" if "ACTIVE" in ["ACTIVE", "LOW ACTIVITY - ASSIGNMENTS COMPLETED"] else "Inactive",
+            "overall_activity": "Active",
             "comment": "Good engagement and on track.",
             "weekly_data": {}
         },
@@ -1396,8 +1398,8 @@ def generate_mock_data(duration_weeks=6):
             "on_time_submissions": 0,
             "missed_names": "None",
             "on_time_names": "None",
-            "category": "NO ACTIVITY",
-            "overall_activity": "Active" if "NO ACTIVITY" in ["ACTIVE", "LOW ACTIVITY - ASSIGNMENTS COMPLETED"] else "Inactive",
+            "category": "In Active",
+            "overall_activity": "Inactive",
             "comment": "Learner has not logged into the platform. There is no activity.",
             "weekly_data": {}
         },
@@ -1418,11 +1420,11 @@ def generate_mock_data(duration_weeks=6):
             "missed_names": "None",
             "on_time_names": "None",
             "category": "MISSED SUBMISSION",
-            "overall_activity": "Active" if "MISSED SUBMISSION" in ["ACTIVE", "LOW ACTIVITY - ASSIGNMENTS COMPLETED"] else "Inactive",
-            "comment": "Learner has past due assignments or unsubmitted.",
+            "overall_activity": "Inactive",
+            "comment": "Few Assignment Missed",
             "weekly_data": {}
         },
-        # Student 4: Low activity, completed on time
+        # Student 4: Logged in but 0 submissions
         {
             "cohort": "Section B",
             "student_id": "STU1004",
@@ -1432,18 +1434,18 @@ def generate_mock_data(duration_weeks=6):
             "last_activity_timestamp": datetime.datetime.now(timezone.utc) - timedelta(days=3),
             "total_engagement_seconds": 2400, # 40 mins
             "total_assignments": 6,
-            "submitted_assignments": 4,
-            "missing_assignments": 0,
-            "overdue_assignments": 0,
-            "on_time_submissions": 4,
+            "submitted_assignments": 0,
+            "missing_assignments": 4,
+            "overdue_assignments": 4,
+            "on_time_submissions": 0,
             "missed_names": "None",
             "on_time_names": "None",
-            "category": "LOW ACTIVITY - ASSIGNMENTS COMPLETED",
-            "overall_activity": "Active" if "LOW ACTIVITY - ASSIGNMENTS COMPLETED" in ["ACTIVE", "LOW ACTIVITY - ASSIGNMENTS COMPLETED"] else "Inactive",
-            "comment": "Engagement is less than 1 hour but assignments completed on time.",
+            "category": "No Submission",
+            "overall_activity": "Inactive",
+            "comment": "No Submisted any Signle Assignmnet",
             "weekly_data": {}
         },
-        # Student 5: Not active (Week 5, engagement under 1 hour, late submissions)
+        # Student 5: Not active (Week 2+, engagement under 1 hour)
         {
             "cohort": "Section A",
             "student_id": "STU1005",
@@ -1458,10 +1460,10 @@ def generate_mock_data(duration_weeks=6):
             "overdue_assignments": 0,
             "on_time_submissions": 2,
             "missed_names": "None",
-            "on_time_names": "None", # 2 late submissions
+            "on_time_names": "None",
             "category": "NOT ACTIVE",
-            "overall_activity": "Active" if "NOT ACTIVE" in ["ACTIVE", "LOW ACTIVITY - ASSIGNMENTS COMPLETED"] else "Inactive",
-            "comment": "Total combined engagement of Week 1 to Week 4 is less than 1 hour (applicable in or after Week 4).",
+            "overall_activity": "Inactive",
+            "comment": "Total combined engagement of Week 1 to Week 2 is less than 1 hour (applicable in or after Week 2).",
             "weekly_data": {}
         }
     ]
@@ -1474,16 +1476,16 @@ def generate_mock_data(duration_weeks=6):
             if current_time < w_start:
                 std["weekly_data"][w] = {"time_spent": "-", "status": "-"}
             else:
-                if std["category"] == "NO ACTIVITY":
+                if std["category"] == "In Active":
                     std["weekly_data"][w] = {"time_spent": 0, "status": "NOT MET"}
                 elif std["category"] == "ACTIVE":
                     std["weekly_data"][w] = {"time_spent": 5040, "status": "MET"}
                 elif std["category"] == "MISSED SUBMISSION":
                     std["weekly_data"][w] = {"time_spent": 3600, "status": "MET"}
-                elif std["category"] == "LOW ACTIVITY - ASSIGNMENTS COMPLETED":
+                elif std["category"] == "No Submission":
                     std["weekly_data"][w] = {"time_spent": 480, "status": "MET"}
                 else: # NOT ACTIVE
-                    std["weekly_data"][w] = {"time_spent": 300 if w < 5 else 0, "status": "MET" if w < 5 else "NOT MET"}
+                    std["weekly_data"][w] = {"time_spent": 300 if w < 3 else 0, "status": "MET" if w < 3 else "NOT MET"}
 
     # --------------------------------------------------------------------------
     # COURSE 2 (Fall 2025)
@@ -1517,7 +1519,7 @@ def generate_mock_data(duration_weeks=6):
             "missed_names": "None",
             "on_time_names": "None",
             "category": "ACTIVE",
-            "overall_activity": "Active" if "ACTIVE" in ["ACTIVE", "LOW ACTIVITY - ASSIGNMENTS COMPLETED"] else "Inactive",
+            "overall_activity": "Active",
             "comment": "Good engagement and on track.",
             "weekly_data": {}
         },
@@ -1538,11 +1540,11 @@ def generate_mock_data(duration_weeks=6):
             "missed_names": "None",
             "on_time_names": "None",
             "category": "MISSED SUBMISSION",
-            "overall_activity": "Active" if "MISSED SUBMISSION" in ["ACTIVE", "LOW ACTIVITY - ASSIGNMENTS COMPLETED"] else "Inactive",
-            "comment": "Learner has past due assignments or unsubmitted.",
+            "overall_activity": "Inactive",
+            "comment": "Few Assignment Missed",
             "weekly_data": {}
         },
-        # Student 3: No activity
+        # Student 3: In Active
         {
             "cohort": "Cohort 2",
             "student_id": "STU2003",
@@ -1558,8 +1560,8 @@ def generate_mock_data(duration_weeks=6):
             "on_time_submissions": 0,
             "missed_names": "None",
             "on_time_names": "None",
-            "category": "NO ACTIVITY",
-            "overall_activity": "Active" if "NO ACTIVITY" in ["ACTIVE", "LOW ACTIVITY - ASSIGNMENTS COMPLETED"] else "Inactive",
+            "category": "In Active",
+            "overall_activity": "Inactive",
             "comment": "Learner has not logged into the platform. There is no activity.",
             "weekly_data": {}
         }
@@ -1572,7 +1574,7 @@ def generate_mock_data(duration_weeks=6):
             if current_time < w_start:
                 std["weekly_data"][w] = {"time_spent": "-", "status": "-"}
             else:
-                if std["category"] == "NO ACTIVITY":
+                if std["category"] == "In Active":
                     std["weekly_data"][w] = {"time_spent": 0, "status": "NOT MET"}
                 elif std["category"] == "ACTIVE":
                     std["weekly_data"][w] = {"time_spent": 7200, "status": "MET"}

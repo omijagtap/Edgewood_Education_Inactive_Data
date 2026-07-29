@@ -294,10 +294,11 @@
                         <select id="watchlist-cat" onchange="filterWatchlist(true)"
                             class="glass-sm text-xs text-white/70 px-3 py-1.5 rounded-lg border border-white/06 bg-transparent">
                             <option value="">All Categories</option>
-                            <option value="NO ACTIVITY">No Activity</option>
+                            <option value="In Active">In Active</option>
                             <option value="MISSED SUBMISSION">Missed Submission</option>
                             <option value="NOT ACTIVE">Not Active</option>
-                            <option value="LOW ACTIVITY - ASSIGNMENTS COMPLETED">Low Activity</option>
+                            <option value="No Submission">No Submission</option>
+                            <option value="ACTIVE">Active</option>
                         </select>
                     </div>
                 </div>
@@ -619,7 +620,9 @@ function renderDashboard(data) {
         'ACTIVE':{'label':'Active','cls':'badge-active'},
         'MISSED SUBMISSION':{'label':'Missed Submission','cls':'badge-missed'},
         'NOT ACTIVE':{'label':'Not Active','cls':'badge-notactive'},
-        'NO ACTIVITY':{'label':'No Activity','cls':'badge-none'},
+        'In Active':{'label':'In Active','cls':'badge-none'},
+        'No Submission':{'label':'No Submission','cls':'badge-low'},
+        'NO ACTIVITY':{'label':'In Active','cls':'badge-none'},
         'LOW ACTIVITY - ASSIGNMENTS COMPLETED':{'label':'Low Activity','cls':'badge-low'},
     };
     const cats = data.cat_counts || {};
@@ -746,9 +749,12 @@ function filterWatchlist(resetPage = false) {
     const paged = filtered.slice(startIdx, startIdx + PAGE_SIZE);
 
     const CAT_BADGE = {
-        'NO ACTIVITY':'badge-none',
+        'In Active':'badge-none',
         'MISSED SUBMISSION':'badge-missed',
         'NOT ACTIVE':'badge-notactive',
+        'No Submission':'badge-low',
+        'ACTIVE':'badge-active',
+        'NO ACTIVITY':'badge-none',
         'LOW ACTIVITY - ASSIGNMENTS COMPLETED':'badge-low',
     };
 
@@ -861,7 +867,7 @@ function _renderCohorts(cohorts) {
         </tr>`;
     }).join('');
     
-    renderPagination('cohorts-pagination', cohortList.length, PAGE_SIZE, cohortsPage, 'cohortsPage', 'renderCohortsPage');
+    renderPagination('cohorts-pagination', cohortList.length, PAGE_SIZE, cohortsPage, 'renderCohortsPage');
 }
 
 function renderCohortsPage() {

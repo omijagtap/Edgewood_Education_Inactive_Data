@@ -33,10 +33,12 @@ C_ALT_ROW  = "F8FAFC"
 
 CAT_STYLES = {
     "ACTIVE":                              {"bg": C_GREEN_BG, "fg": C_GREEN_FG},
-    "LOW ACTIVITY - ASSIGNMENTS COMPLETED":{"bg": C_BLUE_BG,  "fg": C_BLUE_FG},
     "MISSED SUBMISSION":                   {"bg": C_AMB_BG,   "fg": C_AMB_FG},
     "NOT ACTIVE":                          {"bg": C_RED_BG,   "fg": C_RED_FG},
-    "NO ACTIVITY":                         {"bg": C_GREY_BG,  "fg": C_GREY_FG},
+    "In Active":                           {"bg": C_BLUE_BG,  "fg": C_BLUE_FG},
+    "No Submission":                       {"bg": C_GREY_BG,  "fg": C_GREY_FG},
+    "NO ACTIVITY":                         {"bg": C_BLUE_BG,  "fg": C_BLUE_FG},
+    "LOW ACTIVITY - ASSIGNMENTS COMPLETED":{"bg": C_GREY_BG,  "fg": C_GREY_FG},
 }
 
 WEEK_STYLES = {
