@@ -121,7 +121,7 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
 
     assignments = assignments or []
     num_asgn_cols = len(assignments)
-    total_cols = 9 + num_asgn_cols + 2 + (duration_weeks * 2)
+    total_cols = 10 + num_asgn_cols + 2 + (duration_weeks * 2)
 
     try:
         old_ws = sh.worksheet(tab)
@@ -156,7 +156,7 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
         ["Course Information"] * 2
         + ["Learner Information"] * 4
         + ["Activity Summary"] * 2
-        + ["Assignment Submissions"] * (1 + num_asgn_cols)
+        + ["Assignment Submissions"] * (2 + num_asgn_cols)
         + ["Engagement Classification"] * 2
     )
     for w in range(1, duration_weeks + 1):
@@ -166,7 +166,7 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
         "Course ID", "Course Name",
         "Cohort", "Learner Name", "Official Email ID", "Enrollment Status",
         "Last Activity Timestamp", "Total Time Spent (HH:MM:SS)",
-        "Total Assignments"
+        "Total Assignments", "Completed Assignments"
     ]
 
     for a in assignments:
@@ -189,15 +189,20 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
     for r in flat_rows:
         last_act = r.get("last_activity_timestamp")
         last_str = last_act.strftime("%Y-%m-%d %H:%M:%S") if (last_act and hasattr(last_act, "strftime")) else (str(last_act) if last_act else "N/A")
+        subs_map = r.get("assignment_submissions", {})
+        completed_count = r.get("submitted_assignments")
+        if completed_count is None:
+            completed_count = sum(1 for a in assignments if subs_map.get(a["id"]) == "Yes")
+
         row = [
             sis_id, course_name,
             r.get("cohort", "N/A"), r.get("name", "N/A"),
             r.get("email", "N/A"), r.get("status", "N/A"),
             last_str, _hms(r.get("total_engagement_seconds", 0)),
-            r.get("total_assignments", len(assignments))
+            r.get("total_assignments", len(assignments)),
+            completed_count
         ]
 
-        subs_map = r.get("assignment_submissions", {})
         for a in assignments:
             row.append(subs_map.get(a["id"], "No"))
 
@@ -233,7 +238,7 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
                                                verticalAlignment="MIDDLE"))
 
             for idx_a in range(num_asgn_cols):
-                col_let = _col_letter(10 + idx_a)
+                col_let = _col_letter(11 + idx_a)
                 for i, r in enumerate(flat_rows, start=3):
                     a_id = assignments[idx_a]["id"]
                     sub_val = r.get("assignment_submissions", {}).get(a_id, "No")
@@ -246,7 +251,7 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
                                                    verticalAlignment="MIDDLE",
                                                    borders=_border()))
 
-            cat_col_idx = 10 + num_asgn_cols
+            cat_col_idx = 11 + num_asgn_cols
             cat_col = _col_letter(cat_col_idx)
             for i, r in enumerate(flat_rows, start=3):
                 cat = r.get("category", "")
@@ -290,10 +295,10 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
         dim_reqs = []
         dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 0, "endIndex": 2}, "properties": {"pixelSize": 180}, "fields": "pixelSize"}})
         dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 2, "endIndex": 6}, "properties": {"pixelSize": 220}, "fields": "pixelSize"}})
-        dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 6, "endIndex": 9}, "properties": {"pixelSize": 180}, "fields": "pixelSize"}})
+        dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 6, "endIndex": 10}, "properties": {"pixelSize": 180}, "fields": "pixelSize"}})
         if num_asgn_cols > 0:
-            dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 9, "endIndex": 9 + num_asgn_cols}, "properties": {"pixelSize": 280}, "fields": "pixelSize"}})
-        c_st = 9 + num_asgn_cols
+            dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 10, "endIndex": 10 + num_asgn_cols}, "properties": {"pixelSize": 280}, "fields": "pixelSize"}})
+        c_st = 10 + num_asgn_cols
         dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": c_st, "endIndex": c_st + 2}, "properties": {"pixelSize": 280}, "fields": "pixelSize"}})
         sh.batch_update({"requests": dim_reqs})
     except Exception as dim_err:

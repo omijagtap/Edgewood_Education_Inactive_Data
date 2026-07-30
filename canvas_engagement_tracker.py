@@ -951,7 +951,7 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
         headers_row1 = [
             ("Learner Information", 4),
             ("Activity Summary", 2),
-            ("Assignment Submissions", 1 + num_asgn_cols),
+            ("Assignment Submissions", 2 + num_asgn_cols),
             ("Engagement Classification", 3),
         ]
         
@@ -964,7 +964,7 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
         headers_row2 = [
             "Cohort", "Learner Name", "Official Email ID", "Enrollment Status",
             "Last Activity Timestamp", "Total Time Spent (HH:MM:SS)",
-            "Total Assignments"
+            "Total Assignments", "Completed Assignments"
         ]
 
         for a in course_assignments:
@@ -1039,9 +1039,12 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
             
             # Total Assignments count
             ws_detail.cell(row=curr_s_row, column=7, value=student["total_assignments"]).alignment = Alignment(horizontal="center", vertical="center")
+
+            # Completed Assignments count
+            ws_detail.cell(row=curr_s_row, column=8, value=student["submitted_assignments"]).alignment = Alignment(horizontal="center", vertical="center")
             
             # Individual Assignment Yes/No columns
-            curr_col = 8
+            curr_col = 9
             subs_map = student.get("assignment_submissions", {})
             for a in course_assignments:
                 sub_val = subs_map.get(a["id"], "No")
@@ -1080,8 +1083,8 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
             ws_detail.cell(row=curr_s_row, column=curr_col, value=student["comment"]).alignment = Alignment(horizontal="left", vertical="center")
             curr_col += 1
 
-            # Apply basic layout borders/fonts to base student info cells (cols 1-7)
-            for c in range(1, 8):
+            # Apply basic layout borders/fonts to base student info cells (cols 1-8)
+            for c in range(1, 9):
                 cell = ws_detail.cell(row=curr_s_row, column=c)
                 cell.border = thin_border
                 cell.fill = row_fill
