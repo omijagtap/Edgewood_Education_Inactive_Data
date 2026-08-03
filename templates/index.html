@@ -1,878 +1,2329 @@
 <!DOCTYPE html>
 <html lang="en" style="font-size: 75%;">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
     <title>Edgewood Education – Inactive Learner Tracker</title>
-    <meta name="description" content="Edgewood Education Inactive Learner Tracker – monitor student engagement, identify inactive learners, and export reports from Canvas LMS." />
+    <meta name="description"
+        content="Edgewood Education Inactive Learner Tracker – monitor student engagement, identify inactive learners, and export reports from Canvas LMS." />
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <style>
-        *{box-sizing:border-box}
-        body{font-family:'Inter',sans-serif;background:#060608;color:#f1f5f9;overflow-x:hidden}
-        .grid-bg{background-color:#060608;background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);background-size:44px 44px}
-        .glass{background:linear-gradient(135deg,rgba(255,255,255,.035) 0%,rgba(0,0,0,.35) 100%);backdrop-filter:blur(32px);-webkit-backdrop-filter:blur(32px);border:1px solid rgba(255,255,255,.07);border-top-color:rgba(255,255,255,.12);border-left-color:rgba(255,255,255,.10);box-shadow:0 24px 48px -12px rgba(0,0,0,.55)}
-        .glass-sm{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);backdrop-filter:blur(16px)}
-        .shimmer{background:linear-gradient(135deg,#94a3b8 0%,#cbd5e1 35%,#f1f5f9 50%,#cbd5e1 65%,#94a3b8 100%);background-size:300% 300%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:shimmer 28s ease-in-out infinite}
-        @keyframes shimmer{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
-        .glow-red{box-shadow:0 0 20px rgba(238,44,60,.18)}
-        .input-glow:focus{outline:none;border-color:rgba(255,255,255,.25);box-shadow:0 0 0 2px rgba(255,255,255,.06),0 0 18px rgba(255,255,255,.04);background:rgba(255,255,255,.05)}
-        .tab-active{background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.08)}
-        .tab-inactive{color:rgba(255,255,255,.4)}
-        .tab-inactive:hover{color:rgba(255,255,255,.75)}
-        .table-row:hover td{background:rgba(255,255,255,.025)!important}
-        .custom-scroll::-webkit-scrollbar{width:3px;height:3px}
-        .custom-scroll::-webkit-scrollbar-track{background:rgba(255,255,255,.02)}
-        .custom-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:3px}
-        .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
-        .badge-active{background:rgba(16,185,129,.12);color:#34d399;border:1px solid rgba(16,185,129,.2)}
-        .badge-inactive{background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.2)}
-        .badge-missed{background:rgba(245,158,11,.12);color:#fbbf24;border:1px solid rgba(245,158,11,.2)}
-        .badge-low{background:rgba(59,130,246,.12);color:#60a5fa;border:1px solid rgba(59,130,246,.2)}
-        .badge-none{background:rgba(100,116,139,.12);color:#94a3b8;border:1px solid rgba(100,116,139,.2)}
-        .badge-notactive{background:rgba(239,68,68,.16);color:#fc8181;border:1px solid rgba(239,68,68,.25)}
-        .progress-bar{height:4px;border-radius:2px;background:rgba(255,255,255,.07);overflow:hidden}
-        .progress-fill{height:100%;border-radius:2px;transition:width .8s ease}
-        .kpi-card{transition:transform .2s,box-shadow .2s}
-        .kpi-card:hover{transform:translateY(-2px);box-shadow:0 30px 60px -15px rgba(0,0,0,.7)}
-        .spin{animation:spin .9s linear infinite}
-        @keyframes spin{to{transform:rotate(360deg)}}
-        select option{background:#1e293b;color:#f1f5f9}
-        ::-webkit-scrollbar{width:4px}
-        ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:4px}
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #060608;
+            color: #f1f5f9;
+            overflow-x: hidden
+        }
+
+        .grid-bg {
+            background-color: #060608;
+            background-image: linear-gradient(rgba(255, 255, 255, .018) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .018) 1px, transparent 1px);
+            background-size: 44px 44px
+        }
+
+        .glass {
+            background: linear-gradient(135deg, rgba(255, 255, 255, .035) 0%, rgba(0, 0, 0, .35) 100%);
+            backdrop-filter: blur(32px);
+            -webkit-backdrop-filter: blur(32px);
+            border: 1px solid rgba(255, 255, 255, .07);
+            border-top-color: rgba(255, 255, 255, .12);
+            border-left-color: rgba(255, 255, 255, .10);
+            box-shadow: 0 24px 48px -12px rgba(0, 0, 0, .55)
+        }
+
+        .glass-sm {
+            background: rgba(255, 255, 255, .03);
+            border: 1px solid rgba(255, 255, 255, .07);
+            backdrop-filter: blur(16px)
+        }
+
+        .shiny-text {
+            display: inline-block;
+            background: linear-gradient(120deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.75) 35%, #ffffff 50%, rgba(255, 255, 255, 0.75) 65%, rgba(255, 255, 255, 0.75) 100%);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: shinyText 3.5s linear infinite;
+        }
+
+        @keyframes shinyText {
+            0% {
+                background-position: 200% center;
+            }
+
+            100% {
+                background-position: -200% center;
+            }
+        }
+
+        .input-glow:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, .25);
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, .06), 0 0 18px rgba(255, 255, 255, .04);
+            background: rgba(255, 255, 255, .05)
+        }
+
+        .tab-active {
+            background: rgba(255, 255, 255, .08);
+            color: #fff;
+            border-color: rgba(255, 255, 255, .08)
+        }
+
+        .tab-inactive {
+            color: rgba(255, 255, 255, .4)
+        }
+
+        .tab-inactive:hover {
+            color: rgba(255, 255, 255, .75)
+        }
+
+        .table-row:hover td {
+            background: rgba(255, 255, 255, .025) !important
+        }
+
+        .custom-scroll::-webkit-scrollbar {
+            width: 3px;
+            height: 3px
+        }
+
+        .custom-scroll::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, .02)
+        }
+
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, .1);
+            border-radius: 3px
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            white-space: nowrap
+        }
+
+        .badge-active {
+            background: rgba(16, 185, 129, .12);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, .2)
+        }
+
+        .badge-inactive {
+            background: rgba(239, 68, 68, .12);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, .2)
+        }
+
+        .badge-missed {
+            background: rgba(245, 158, 11, .12);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, .2)
+        }
+
+        .badge-notactive {
+            background: rgba(239, 68, 68, .16);
+            color: #fc8181;
+            border: 1px solid rgba(239, 68, 68, .25)
+        }
+
+        .badge-none {
+            background: rgba(100, 116, 139, .12);
+            color: #94a3b8;
+            border: 1px solid rgba(100, 116, 139, .2)
+        }
+
+        .progress-bar {
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, .07);
+            overflow: hidden
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width .8s ease
+        }
+
+        .kpi-card {
+            transition: transform .2s, box-shadow .2s
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, .6)
+        }
+
+        .spin {
+            animation: spin .9s linear infinite
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg)
+            }
+        }
+
+        select option {
+            background: #1e293b;
+            color: #f1f5f9
+        }
+
+        /* Pure Solid Black 100% Theme & 40% Reduced Calendar for Date Pickers */
+        #dash-start-date,
+        #dash-end-date,
+        .flatpickr-input {
+            background-color: #000000 !important;
+            color: #ffffff !important;
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            border-radius: 8px !important;
+            font-size: 11px !important;
+            padding: 4px 8px !important;
+            height: 30px !important;
+            width: 130px !important;
+            font-family: monospace;
+        }
+
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.4) !important;
+        }
+
+        /* Flatpickr Pure Solid Black Popover Calendar (Zero Grayish Effect) */
+        .flatpickr-calendar {
+            background: #000000 !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.95) !important;
+            border-radius: 12px !important;
+            font-size: 10px !important;
+            width: 210px !important;
+            padding: 6px !important;
+            margin-top: 4px !important;
+        }
+
+        .flatpickr-months,
+        .flatpickr-month,
+        .flatpickr-current-month {
+            background: #000000 !important;
+            color: #ffffff !important;
+            fill: #ffffff !important;
+            height: 26px !important;
+        }
+
+        .flatpickr-current-month {
+            font-size: 11px !important;
+            padding: 2px 0 0 0 !important;
+        }
+
+        .flatpickr-current-month .flatpickr-monthDropdown-months {
+            background: #000000 !important;
+            color: #ffffff !important;
+            font-size: 10px !important;
+            padding: 2px 4px !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            border-radius: 6px !important;
+        }
+
+        .flatpickr-monthDropdown-months option {
+            background: #000000 !important;
+            color: #ffffff !important;
+        }
+
+        .flatpickr-weekdays {
+            background: #000000 !important;
+            height: 20px !important;
+        }
+
+        span.flatpickr-weekday {
+            background: #000000 !important;
+            color: rgba(255, 255, 255, 0.4) !important;
+            font-size: 9px !important;
+            font-weight: 700 !important;
+        }
+
+        .flatpickr-days,
+        .dayContainer {
+            background: #000000 !important;
+            min-width: 194px !important;
+            max-width: 194px !important;
+            width: 194px !important;
+        }
+
+        .flatpickr-day {
+            background: #000000 !important;
+            height: 24px !important;
+            line-height: 24px !important;
+            max-width: 25px !important;
+            font-size: 10px !important;
+            border-radius: 6px !important;
+            color: rgba(255, 255, 255, 0.85) !important;
+            margin: 1px 0.5px !important;
+            border: none !important;
+        }
+
+        .flatpickr-day.today {
+            border: 1px solid #3b82f6 !important;
+        }
+
+        .flatpickr-day.selected,
+        .flatpickr-day.startRange,
+        .flatpickr-day.endRange {
+            background: #2563eb !important;
+            color: #ffffff !important;
+            font-weight: 700 !important;
+        }
+
+        .flatpickr-day:hover {
+            background: rgba(255, 255, 255, 0.15) !important;
+        }
+
+        .flatpickr-day.flatpickr-disabled,
+        .flatpickr-day.flatpickr-disabled:hover {
+            background: #000000 !important;
+            color: rgba(255, 255, 255, 0.2) !important;
+        }
+
+        ::-webkit-scrollbar {
+            width: 4px
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, .08);
+            border-radius: 4px
+        }
     </style>
 </head>
+
 <body class="grid-bg min-h-screen overflow-x-hidden">
 
-<!-- Ambient glow -->
-<div style="position:fixed;top:-15%;right:-10%;width:560px;height:560px;background:#3b82f6;opacity:.03;border-radius:50%;filter:blur(120px);pointer-events:none;z-index:0"></div>
-<div style="position:fixed;bottom:-10%;left:-5%;width:400px;height:400px;background:#EE2C3C;opacity:.025;border-radius:50%;filter:blur(100px);pointer-events:none;z-index:0"></div>
+    <!-- Ambient glow -->
+    <div
+        style="position:fixed;top:-15%;right:-10%;width:560px;height:560px;background:#3b82f6;opacity:.03;border-radius:50%;filter:blur(120px);pointer-events:none;z-index:0">
+    </div>
+    <div
+        style="position:fixed;bottom:-10%;left:-5%;width:400px;height:400px;background:#EE2C3C;opacity:.025;border-radius:50%;filter:blur(100px);pointer-events:none;z-index:0">
+    </div>
 
-<div class="relative z-10 max-w-screen-2xl mx-auto px-4 sm:px-6 py-6 pb-20">
+    <div class="relative z-10 max-w-screen-2xl mx-auto px-4 sm:px-6 py-6 pb-20">
 
-    <!-- ── TOP NAV ── -->
-    <header class="flex items-center justify-between mb-8 flex-wrap gap-3">
-        <!-- Left: Brand + System Live -->
-        <div class="flex items-center gap-4">
-            <div>
-                <span class="text-sm font-black tracking-tight" style="color:#fff">Edgewood Education</span>
-                <span class="text-xs font-light text-white/40 ml-1">Inactive Learner Tracker</span>
-            </div>
-            <div class="flex items-center gap-1.5 text-[10px] text-white/45 glass-sm px-2.5 py-1.5 rounded-lg">
-                <div class="w-1.5 h-1.5 rounded-full bg-emerald-400" style="box-shadow:0 0 6px rgba(52,211,153,.7)"></div>
-                System Live
-            </div>
-        </div>
-
-        <!-- Right: Navigation only -->
-        <nav class="flex glass-sm rounded-full p-1 gap-1">
-            <button id="nav-audit" onclick="switchView('audit')" class="tab-active px-5 py-2 text-xs font-semibold rounded-full border border-transparent transition-all">Run Audit</button>
-            <button id="nav-dashboard" onclick="switchView('dashboard')" class="tab-inactive px-5 py-2 text-xs font-semibold rounded-full border border-transparent transition-all">Dashboard</button>
-        </nav>
-    </header>
-
-    <!-- ═══════════════════════════════════════════════════════════════ -->
-    <!-- AUDIT VIEW -->
-    <!-- ═══════════════════════════════════════════════════════════════ -->
-    <div id="audit-view">
-        <div class="glass rounded-[2.5rem] p-8 lg:p-14 flex flex-col lg:flex-row gap-12 lg:gap-16">
-
-            <!-- Left – Info -->
-            <div class="lg:w-1/2 flex flex-col justify-center">
-
-                <h1 class="text-3xl lg:text-4xl font-extrabold shimmer leading-tight mb-4">
-                    Edgewood Education<br/>Inactive Learner<br/>Tracker
-                </h1>
-                <p class="text-white/50 text-sm leading-relaxed mb-8 font-light max-w-md">
-                    Identify inactive learners across Canvas courses instantly. Pull real-time engagement analytics, detect missed submissions, and automatically sync your report to Google Sheets for team review.
-                </p>
-
-                <div class="space-y-4 text-sm">
-                    <div class="flex items-start gap-4 group">
-                        <div class="w-7 h-7 rounded-full glass-sm flex items-center justify-center text-xs font-bold text-white/70 flex-shrink-0 mt-0.5 group-hover:border-[#EE2C3C] group-hover:text-[#EE2C3C] transition-all">1</div>
-                        <div class="pt-0.5"><strong class="text-white/90">Enter Course IDs</strong><br/><span class="text-white/45 text-xs">Single or comma-separated (e.g. EDU-900-UAD4-Spring-2020, 12345)</span></div>
-                    </div>
-                    <div class="flex items-start gap-4 group">
-                        <div class="w-7 h-7 rounded-full glass-sm flex items-center justify-center text-xs font-bold text-white/70 flex-shrink-0 mt-0.5 group-hover:border-[#EE2C3C] group-hover:text-[#EE2C3C] transition-all">2</div>
-                        <div class="pt-0.5"><strong class="text-white/90">Parallel Processing</strong><br/><span class="text-white/45 text-xs">Multiple courses processed simultaneously for maximum speed</span></div>
-                    </div>
-                    <div class="flex items-start gap-4 group">
-                        <div class="w-7 h-7 rounded-full glass-sm flex items-center justify-center text-xs font-bold text-white/70 flex-shrink-0 mt-0.5 group-hover:border-[#EE2C3C] group-hover:text-[#EE2C3C] transition-all">3</div>
-                        <div class="pt-0.5"><strong class="text-white/90">Auto-Sync to Google Sheets</strong><br/><span class="text-white/45 text-xs">Full data (all weeks) pushed to individual course tabs</span></div>
-                    </div>
+        <!-- ── TOP NAV ── -->
+        <header class="flex items-center justify-between mb-8 flex-wrap gap-3 relative z-50">
+            <!-- Left: Brand -->
+            <div class="flex items-center gap-3">
+                <div>
+                    <span class="text-sm font-black tracking-tight shiny-text">Edgewood Education</span>
+                    <span class="text-xs font-light text-white/40 ml-1">Inactive Learner Tracker</span>
                 </div>
             </div>
 
-            <!-- Divider -->
-            <div class="hidden lg:block w-px self-stretch" style="background:linear-gradient(to bottom,transparent,rgba(255,255,255,.1),transparent)"></div>
-
-            <!-- Right – Form -->
-            <div class="lg:w-1/2 flex flex-col justify-center">
-                <h2 class="text-2xl font-bold shimmer mb-2">Generate Report</h2>
-                <p class="text-white/45 text-sm mb-8">Enter Canvas Course ID(s) below. Supports SIS codes and numeric IDs.</p>
-
-                <form id="audit-form" class="space-y-5">
-                    <div>
-                        <label class="block text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2">Course ID(s)</label>
-                        <input id="course-input" type="text" placeholder="e.g. EDU-900-UAD4-Spring-2020, 12345"
-                            class="input-glow w-full bg-black/30 border border-white/10 text-white text-sm rounded-xl px-5 py-4 transition-all placeholder-white/20 font-mono" />
-                        <p class="text-white/30 text-[11px] mt-2">Separate multiple course IDs with commas. Type <strong class="text-white/50">MOCK</strong> to test with demo data.</p>
+            <!-- Right: Learner Search Bar + Excluded Assessment Input + Navigation -->
+            <div class="flex items-center gap-3 flex-wrap relative">
+                <!-- Learner Search Bar (Dashboard View) -->
+                <div id="learner-search-nav-container"
+                    class="hidden relative items-center gap-2.5 bg-black/90 backdrop-blur-md px-3.5 py-2 rounded-xl border border-white/20 focus-within:border-white/40 transition-all w-full sm:w-96 md:w-[440px]"
+                    style="overflow: visible;">
+                    <svg class="w-4 h-4 text-white/50 flex-shrink-0" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input id="learner-nav-search-input" type="text" placeholder="Search learner by name or email ID..."
+                        oninput="onLearnerNavSearchInput(this.value)"
+                        class="bg-transparent text-xs text-white placeholder-white/40 focus:outline-none w-full font-mono tracking-tight"
+                        style="border:none!important;outline:none!important;box-shadow:none!important;" />
+                    <div id="learner-search-dropdown"
+                        class="hidden absolute right-0 top-full mt-2 rounded-xl border border-white/20 p-2 max-h-72 overflow-y-auto shadow-2xl z-[9999]"
+                        style="width: 100%; min-width: 360px; background: rgba(0, 0, 0, 0.95); backdrop-filter: blur(24px); box-shadow: 0 25px 60px rgba(0,0,0,0.9);">
                     </div>
+                </div>
 
-                    <button type="submit" id="run-btn"
-                        class="w-full py-4 glass border border-white/15 hover:border-white/25 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-3 group hover:bg-white/5">
-                        <span id="btn-label">Run Engagement Audit</span>
-                        <svg id="btn-icon" class="w-4 h-4 opacity-70 group-hover:translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                        </svg>
-                        <svg id="btn-spin" class="hidden spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                        </svg>
+                <!-- Excluded Assessment Input Bar (Minimal & Compact Theme) -->
+                <div id="excluded-assessment-container"
+                    class="flex items-center gap-2 bg-black/40 px-3 py-1.5 rounded-xl border border-white/10 focus-within:border-white/20 transition-all"
+                    title="Assessment names (graded MCQs, submissions, quizzes) to exclude">
+                    <span class="text-xs font-medium text-white/60 hidden sm:inline flex-shrink-0">Exclude
+                        Assessments:</span>
+                    <input id="excluded-modules-input" type="text" placeholder="Quiz 1, Survey, Reflection..."
+                        class="bg-transparent text-xs text-white/90 placeholder-white/30 focus:outline-none w-48 sm:w-64 font-mono"
+                        style="border:none!important;outline:none!important;box-shadow:none!important;" />
+                    <button type="button" onclick="saveExcludedModules()"
+                        class="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white/80 text-[10px] font-medium rounded-lg border border-white/10 transition-all cursor-pointer flex-shrink-0">
+                        Save
                     </button>
+                    <span id="save-status-badge"
+                        class="text-[10px] text-emerald-400 font-mono hidden items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Saved!
+                    </span>
+                </div>
+                <nav class="flex glass-sm rounded-full p-1 gap-1">
+                    <button id="nav-audit" onclick="switchView('audit')"
+                        class="tab-active px-5 py-2 text-xs font-semibold rounded-full border border-transparent transition-all">Run
+                        Audit</button>
+                    <button id="nav-dashboard" onclick="switchView('dashboard')"
+                        class="tab-inactive px-5 py-2 text-xs font-semibold rounded-full border border-transparent transition-all">Dashboard</button>
+                </nav>
+            </div>
+        </header>
 
-                    <!-- Progress bar -->
-                    <div id="progress-wrap" class="hidden">
-                        <div class="glass-sm rounded-xl p-4 relative overflow-hidden">
-                            <div class="absolute left-0 top-0 bottom-0 w-0.5 bg-[#EE2C3C]"></div>
-                            <div class="flex items-center gap-3">
-                                <svg class="spin h-3.5 w-3.5 text-[#EE2C3C] flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                                </svg>
-                                <span id="progress-text" class="text-xs font-mono text-white/75 truncate">Initializing...</span>
-                            </div>
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- AUDIT VIEW -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <div id="audit-view">
+            <div class="glass rounded-[2.5rem] p-8 lg:p-14 flex flex-col lg:flex-row gap-12 lg:gap-16">
+                <!-- Left – Info -->
+                <div class="lg:w-1/2 flex flex-col justify-center">
+                    <h1 class="text-3xl lg:text-4xl font-extrabold shiny-text leading-tight mb-4">
+                        Edgewood Education<br />Inactive Learner Tracker
+                    </h1>
+                    <p class="text-white/50 text-sm leading-relaxed mb-8 font-light max-w-md">
+                        Identify inactive learners across Canvas courses instantly. Pull real-time engagement analytics,
+                        detect missed submissions, and automatically sync your report to Google Sheets.
+                    </p>
+
+                    <div class="space-y-4 text-sm">
+                        <div class="flex items-start gap-4 group">
+                            <div
+                                class="w-7 h-7 rounded-full glass-sm flex items-center justify-center text-xs font-bold text-white/70 flex-shrink-0 mt-0.5 group-hover:border-[#EE2C3C] group-hover:text-[#EE2C3C] transition-all">
+                                1</div>
+                            <div class="pt-0.5"><strong class="text-white/90">Enter Course IDs</strong><br /><span
+                                    class="text-white/45 text-xs">Single or comma-separated (e.g.
+                                    EDU-900-UAD4-Spring-2020)</span></div>
+                        </div>
+                        <div class="flex items-start gap-4 group">
+                            <div
+                                class="w-7 h-7 rounded-full glass-sm flex items-center justify-center text-xs font-bold text-white/70 flex-shrink-0 mt-0.5 group-hover:border-[#EE2C3C] group-hover:text-[#EE2C3C] transition-all">
+                                2</div>
+                            <div class="pt-0.5"><strong class="text-white/90">Parallel Processing</strong><br /><span
+                                    class="text-white/45 text-xs">Multiple courses processed simultaneously for maximum
+                                    speed</span></div>
+                        </div>
+                        <div class="flex items-start gap-4 group">
+                            <div
+                                class="w-7 h-7 rounded-full glass-sm flex items-center justify-center text-xs font-bold text-white/70 flex-shrink-0 mt-0.5 group-hover:border-[#EE2C3C] group-hover:text-[#EE2C3C] transition-all">
+                                3</div>
+                            <div class="pt-0.5"><strong class="text-white/90">Auto-Sync to Google
+                                    Sheets</strong><br /><span class="text-white/45 text-xs">Full data pushed to
+                                    individual course tabs & dashboard</span></div>
                         </div>
                     </div>
-                </form>
+                </div>
+
+                <!-- Divider -->
+                <div class="hidden lg:block w-px self-stretch"
+                    style="background:linear-gradient(to bottom,transparent,rgba(255,255,255,.1),transparent)"></div>
+
+                <!-- Right – Form -->
+                <div class="lg:w-1/2 flex flex-col justify-center">
+                    <h2 class="text-2xl font-bold shiny-text mb-2">Generate Report</h2>
+                    <p class="text-white/45 text-sm mb-8">Enter Canvas Course ID(s) below. Supports SIS codes and
+                        numeric IDs.</p>
+
+                    <form id="audit-form" class="space-y-5">
+                        <div>
+                            <label
+                                class="block text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2">Course
+                                ID(s)</label>
+                            <input id="course-input" type="text"
+                                placeholder="e.g. EDU-900-UAD4-Spring-2020, BUS-607-UC10-Fall-2025"
+                                class="input-glow w-full bg-black/30 border border-white/10 text-white text-sm rounded-xl px-5 py-4 transition-all placeholder-white/20 font-mono" />
+                            <p class="text-white/30 text-[11px] mt-2">Separate multiple course IDs with commas. Type
+                                <strong class="text-white/50">MOCK</strong> for synthetic demo data.</p>
+                        </div>
+
+                        <button type="submit" id="run-btn"
+                            class="w-full py-4 glass border border-white/15 hover:border-white/25 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-3 group hover:bg-white/5">
+                            <span id="btn-label">Run Engagement Audit</span>
+                            <svg id="btn-icon"
+                                class="w-4 h-4 opacity-70 group-hover:translate-y-0.5 transition-transform" fill="none"
+                                stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            <svg id="btn-spin" class="hidden spin w-4 h-4" xmlns="http://www.w3.org/2000/svg"
+                                fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                                    stroke-width="4" />
+                                <path class="opacity-75" fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                        </button>
+
+                        <div id="progress-wrap" class="hidden">
+                            <div class="glass-sm rounded-xl p-4 relative overflow-hidden">
+                                <div id="progress-bar-stripe"
+                                    class="absolute left-0 top-0 bottom-0 w-1 bg-[#EE2C3C] transition-colors"></div>
+                                <div class="flex items-center gap-3">
+                                    <svg id="progress-spinner-icon" class="spin h-4 w-4 text-[#EE2C3C] flex-shrink-0"
+                                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                                            stroke-width="4" />
+                                        <path class="opacity-75" fill="currentColor"
+                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                    </svg>
+                                    <svg id="progress-check-icon" class="hidden h-4 w-4 text-emerald-400 flex-shrink-0"
+                                        fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                            d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span id="progress-text"
+                                        class="text-xs font-mono text-white/75 truncate">Initializing...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- DASHBOARD VIEW -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <div id="dashboard-view" class="hidden space-y-6">
+
+            <!-- Top Dashboard Controls & Date Range Filter -->
+            <div id="dash-top-controls"
+                class="glass-sm p-4 rounded-2xl flex flex-wrap items-center justify-between gap-4 border border-white/10 relative z-[9999]" style="position: relative; z-index: 9999; overflow: visible !important;">
+                <div class="flex items-center gap-3 flex-wrap">
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="date-filter-toggle" onchange="toggleDateFilterMode()"
+                            class="sr-only peer">
+                        <div
+                            class="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600">
+                        </div>
+                        <span class="ml-2 text-xs font-semibold text-white/80">Filter by Date Range</span>
+                    </label>
+                    <div id="date-range-controls"
+                        class="flex items-center gap-2 opacity-40 pointer-events-none transition-all flex-wrap">
+                        <span class="text-xs text-white/50">Start:</span>
+                        <input type="text" id="dash-start-date" placeholder="dd - mm - yyyy"
+                            class="bg-black/90 text-xs text-white placeholder-white/40 px-3 py-1.5 rounded-lg border border-white/15 focus:outline-none font-mono w-32">
+                        <span class="text-xs text-white/50">End:</span>
+                        <input type="text" id="dash-end-date" placeholder="dd - mm - yyyy"
+                            class="bg-black/90 text-xs text-white placeholder-white/40 px-3 py-1.5 rounded-lg border border-white/15 focus:outline-none font-mono w-32">
+                        <button id="apply-date-filter-btn" onclick="triggerDateRangeFilter()"
+                            class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white rounded-lg transition-all shadow-md cursor-pointer flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.707 7.293A1 1 0 013 6.586V4z" />
+                            </svg>
+                            Apply Date Range
+                        </button>
+                    </div>
+
+                    <!-- Active Filter Badge with Cancel (x) Icon -->
+                    <div id="active-date-badge"
+                        class="hidden items-center gap-2 bg-blue-600/20 border border-blue-500/40 text-blue-300 px-3 py-1 rounded-lg text-xs font-mono">
+                        <span id="active-date-text">📅 Range Filter Active</span>
+                        <button type="button" onclick="cancelDateFilter()" title="Clear date filter"
+                            class="hover:text-white text-blue-400 font-bold ml-1 cursor-pointer">✕</button>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap relative z-[9999]">
+                    <span class="text-xs text-white/50 font-medium">Course Shell:</span>
+                    <!-- New Search Box with Right-side Dropdown Arrow & Checkbox List -->
+                    <div class="relative flex items-center z-[9999]" id="cs-search-container">
+                        <div class="flex items-center bg-black/50 text-xs text-white px-3 py-1.5 rounded-lg border border-white/15 focus-within:border-white/40 transition-all font-mono min-w-[200px] max-w-[320px]">
+                            <input type="text" id="course-search-input-top" oninput="onCourseSearchInput(this.value)" onclick="openCourseDropdown()"
+                                placeholder="Search course shell..."
+                                class="bg-transparent text-xs text-white placeholder-white/30 focus:outline-none w-full font-mono" />
+                            <button type="button" id="cs-dropdown-toggle-btn" onclick="toggleCourseDropdown(event)"
+                                title="Toggle Course Shell list"
+                                class="ml-1.5 text-white/50 hover:text-white transition-colors p-0.5 flex-shrink-0 cursor-pointer focus:outline-none">
+                                <svg id="cs-arrow-icon" class="w-3.5 h-3.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="cs-checkbox-dropdown" class="hidden absolute right-0 top-full mt-2 rounded-xl border border-white/25 p-2.5 max-h-72 overflow-y-auto shadow-2xl z-[999999] w-full min-w-[280px]"
+                            style="background: #09090b !important; border: 1px solid rgba(255,255,255,0.25); box-shadow: 0 30px 80px rgba(0,0,0,0.98); opacity: 1 !important;">
+                        </div>
+                    </div>
+
+                    <!-- Simple Clean Manual Refresh Button -->
+                    <button type="button" onclick="manualRefreshDashboard()" id="manual-refresh-btn"
+                        title="Instantly refresh sheet data"
+                        class="px-3.5 py-1.5 bg-white/10 hover:bg-white/20 text-white/90 border border-white/10 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 cursor-pointer">
+                        <svg id="refresh-icon-spin" class="w-3.5 h-3.5 text-white/70" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>Refresh Data</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading skeleton -->
+            <div id="dash-loading" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 relative z-1">
+                <div class="glass-sm rounded-2xl h-16 animate-pulse"></div>
+                <div class="glass-sm rounded-2xl h-16 animate-pulse"></div>
+                <div class="glass-sm rounded-2xl h-16 animate-pulse"></div>
+                <div class="glass-sm rounded-2xl h-16 animate-pulse"></div>
+                <div class="glass-sm rounded-2xl h-16 animate-pulse"></div>
+                <div class="glass-sm rounded-2xl h-16 animate-pulse"></div>
+            </div>
+
+            <div id="dash-content" class="hidden space-y-6 relative z-1">
+
+                <!-- Compact KPI Cards (Smaller fonts) -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2" id="kpi-grid">
+                    <div class="kpi-card glass rounded-lg p-2.5" title="Total courses tracked in audit">
+                        <span
+                            class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Courses</span>
+                        <span id="kpi-courses" class="text-lg font-black text-white">--</span>
+                    </div>
+                    <div class="kpi-card glass rounded-lg p-2.5" title="Total unique enrolled learners">
+                        <span class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Total
+                            Learners</span>
+                        <span id="kpi-total" class="text-lg font-black text-white">--</span>
+                    </div>
+                    <div class="kpi-card glass rounded-lg p-2.5"
+                        title="All learners who have submitted all required assignments">
+                        <span class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Active
+                            Learners</span>
+                        <span id="kpi-active" class="text-lg font-black text-emerald-400">--</span>
+                    </div>
+                    <div class="kpi-card glass rounded-lg p-2.5" title="Learners who have missed 1 or more submissions">
+                        <span class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Missed
+                            Subs</span>
+                        <span id="kpi-missed" class="text-lg font-black text-amber-400">--</span>
+                    </div>
+                    <div class="kpi-card glass rounded-lg p-2.5"
+                        title="Learners who have not logged in or missed all submissions">
+                        <span
+                            class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Inactive</span>
+                        <span id="kpi-inactive" class="text-lg font-black text-red-400">--</span>
+                    </div>
+                    <div class="kpi-card glass rounded-lg p-2.5"
+                        title="The overall average time spent across all sections and modules">
+                        <span class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Avg
+                            Time</span>
+                        <div class="flex items-baseline gap-1"><span id="kpi-time"
+                                class="text-lg font-black text-white">--</span><span
+                                class="text-[9px] text-white/40">hrs</span></div>
+                    </div>
+                </div>
+
+                <!-- Two-Column Layout: Weekly Tracker (Left ~72%) + Engagement Categories (Right ~28%) -->
+                <div class="flex gap-4 flex-col xl:flex-row">
+                    <!-- LEFT: Weekly Engagement Tracker (~72%) -->
+                    <div class="xl:w-[72%] w-full glass-sm rounded-xl p-4 border border-white/[.06]">
+                        <span class="text-[10px] font-bold text-white/50 uppercase tracking-wider block mb-3">Weekly
+                            Engagement Tracker</span>
+                        <div id="weekly-tracker" class="space-y-1">
+                            <div class="text-[10px] text-white/30 text-center py-4">Loading weekly data...</div>
+                        </div>
+                    </div>
+                    <!-- RIGHT: Engagement Categories (~28%) -->
+                    <div class="xl:w-[28%] w-full glass-sm rounded-xl p-4 border border-white/[.06]">
+                        <span class="text-[10px] font-bold text-white/50 uppercase tracking-wider block mb-3">Engagement
+                            Categories</span>
+                        <div id="cat-breakdown" class="flex flex-col gap-2"></div>
+                    </div>
+                </div>
+
+                <!-- Section Navigation Tabs (Smaller) -->
+                <div class="flex border-b border-white/10 gap-3 mb-2 overflow-x-auto custom-scroll">
+                    <button id="tab-btn-course" onclick="switchDashboardSection('course')"
+                        class="px-3 py-2 text-[11px] font-bold text-white border-b-2 border-blue-500 transition-all cursor-pointer">
+                        Course Performance Analysis
+                    </button>
+                    <button id="tab-btn-leaderboard" onclick="switchDashboardSection('leaderboard')"
+                        class="px-3 py-2 text-[11px] font-bold text-white/40 hover:text-white border-b-2 border-transparent transition-all cursor-pointer">
+                        Content Consumption Leaderboard
+                    </button>
+                    <button id="tab-btn-cohort" onclick="switchDashboardSection('cohort')"
+                        class="px-3 py-2 text-[11px] font-bold text-white/40 hover:text-white border-b-2 border-transparent transition-all cursor-pointer">
+                        Cohort Performance Analysis
+                    </button>
+                </div>
+
+                <!-- Section 1: Course Performance Analysis -->
+                <div id="sec-course-performance" class="glass rounded-2xl p-5 border border-white/10">
+                    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+                        <div>
+                            <div class="flex items-center gap-2.5 flex-wrap">
+                                <h3 class="text-sm font-bold tracking-tight shiny-text text-white">Course Performance
+                                    Analysis</h3>
+                                <span id="course-range-badge"
+                                    class="badge bg-blue-500/15 text-blue-300 border border-blue-500/30 text-[10px]">All
+                                    Courses • 6-Week Duration</span>
+                            </div>
+                            <p class="text-[11px] text-white/40">Active/Inactive counts mapped directly from Overall
+                                Activity column</p>
+                        </div>
+                        <input type="text" id="course-search-input" onkeyup="filterCourseTable()"
+                            placeholder="Search course code or name..."
+                            class="bg-black/40 text-xs text-white px-3.5 py-1.5 rounded-xl border border-white/10 placeholder-white/30 focus:outline-none w-56 font-mono" />
+                    </div>
+                    <div class="overflow-x-auto custom-scroll max-h-72">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="border-b border-white/10 text-white/40 font-mono text-[10px] uppercase">
+                                    <th class="py-2.5 px-3">Course Code / Name</th>
+                                    <th class="py-2.5 px-3 text-center">Total Learners</th>
+                                    <th class="py-2.5 px-3 text-center">Expected Submissions</th>
+                                    <th class="py-2.5 px-3 text-center">Learner Submissions</th>
+                                    <th class="py-2.5 px-3 text-center">Active Learners</th>
+                                    <th class="py-2.5 px-3 text-center">Inactive Learners</th>
+                                    <th class="py-2.5 px-3 text-center">Missed Subs</th>
+                                    <th class="py-2.5 px-3 text-center min-w-[140px]">6-Week Health Bar</th>
+                                </tr>
+                            </thead>
+                            <tbody id="course-performance-tbody" class="divide-y divide-white/5"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Section 2: Content Consumption Leaderboard -->
+                <div id="sec-leaderboard" class="hidden glass rounded-2xl p-5 border border-white/10">
+                    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+                        <div>
+                            <h3 class="text-sm font-bold tracking-tight shiny-text text-white">Content Consumption
+                                Leaderboard</h3>
+                            <p class="text-[11px] text-white/40">Learners with >10 minutes total time spent in course
+                                modules</p>
+                        </div>
+                        <input type="text" id="leaderboard-search-input" onkeyup="filterLeaderboardTable()"
+                            placeholder="Search learner name or email..."
+                            class="bg-black/40 text-xs text-white px-3.5 py-1.5 rounded-xl border border-white/10 placeholder-white/30 focus:outline-none w-56 font-mono" />
+                    </div>
+                    <div class="overflow-x-auto custom-scroll">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="border-b border-white/10 text-white/40 font-mono text-[10px] uppercase">
+                                    <th class="py-2.5 px-3 w-10">Rank</th>
+                                    <th class="py-2.5 px-3">Learner Name</th>
+                                    <th class="py-2.5 px-3">Official Email</th>
+                                    <th class="py-2.5 px-3">Course</th>
+                                    <th class="py-2.5 px-3 text-center">Time Spent</th>
+                                    <th class="py-2.5 px-3 text-center">Submitted / Assigned</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaderboard-tbody" class="divide-y divide-white/5"></tbody>
+                        </table>
+                    </div>
+                    <!-- Numbered & Arrow Pagination Bar -->
+                    <div class="mt-4 flex flex-wrap justify-between items-center text-xs text-white/40 gap-2">
+                        <span id="leaderboard-count-text">Showing 0 learners</span>
+                        <div id="leaderboard-pagination" class="flex items-center gap-1.5"></div>
+                    </div>
+                </div>
+
+                <!-- Section 3: Cohort Performance Analysis Table -->
+                <div id="sec-cohort" class="hidden glass rounded-2xl p-5 border border-white/10">
+                    <h3 class="text-sm font-bold tracking-tight shiny-text text-white mb-4">Cohort Performance Analysis
+                    </h3>
+                    <div class="overflow-x-auto custom-scroll">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="border-b border-white/10 text-white/40 font-mono text-[10px] uppercase">
+                                    <th class="py-2.5 px-3">Cohort Name</th>
+                                    <th class="py-2.5 px-3 text-center">Total Learners</th>
+                                    <th class="py-2.5 px-3 text-center">Active Learners</th>
+                                    <th class="py-2.5 px-3 text-center">Red Alert Learners</th>
+                                    <th class="py-2.5 px-3 text-center">Avg Time Spent</th>
+                                    <th class="py-2.5 px-3 text-center">Missed Submissions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cohort-tbody" class="divide-y divide-white/5"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div><!-- /dash-content -->
+        </div><!-- /dashboard-view -->
+
+    </div><!-- /container -->
+
+    <!-- Learner Details Modal (Transparent Blurry Backdrop & Clean Pending Submissions List) -->
+    <div id="learner-modal"
+        class="hidden fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md transition-all">
+        <div class="bg-black/90 max-w-lg w-full rounded-2xl p-6 border border-white/15 relative shadow-2xl space-y-5"
+            style="box-shadow: 0 25px 60px rgba(0,0,0,0.85);">
+            <button onclick="closeLearnerModal()"
+                class="absolute top-4 right-4 text-white/50 hover:text-white text-base font-bold w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all cursor-pointer">✕</button>
+
+            <!-- Header Profile Info -->
+            <div class="flex items-center gap-3.5 pb-3 border-b border-white/10">
+                <div
+                    class="w-11 h-11 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+                    👤
+                </div>
+                <div class="min-w-0 flex-1">
+                    <h3 id="modal-learner-name" class="text-base font-bold text-white tracking-tight truncate">Learner
+                        Name</h3>
+                    <p id="modal-learner-email" class="text-xs text-white/50 font-mono mt-0.5 truncate">
+                        email@edgewood.edu</p>
+                </div>
+            </div>
+
+            <!-- Key Metrics Grid (Spacious 2-column grid, zero text overlap) -->
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-white/5 p-3.5 rounded-xl border border-white/10 overflow-hidden">
+                    <span class="text-[10px] font-bold text-white/40 uppercase block mb-1">Overall Status</span>
+                    <span id="modal-learner-status"
+                        class="badge badge-active text-[10px] inline-block truncate">Active</span>
+                </div>
+                <div class="bg-white/5 p-3.5 rounded-xl border border-white/10 overflow-hidden">
+                    <span class="text-[10px] font-bold text-white/40 uppercase block mb-1">Submissions</span>
+                    <span id="modal-learner-subs" class="text-xs font-bold text-blue-400 font-mono block truncate">0 /
+                        0</span>
+                </div>
+                <div class="bg-white/5 p-3.5 rounded-xl border border-white/10 overflow-hidden">
+                    <span class="text-[10px] font-bold text-white/40 uppercase block mb-1">Total Time Spent</span>
+                    <span id="modal-learner-total-time"
+                        class="text-xs font-bold text-white font-mono block truncate">00:00:00</span>
+                </div>
+                <div class="bg-white/5 p-3.5 rounded-xl border border-white/10 overflow-hidden">
+                    <span class="text-[10px] font-bold text-white/40 uppercase block mb-1">Avg Time / Course</span>
+                    <span id="modal-learner-avg-time"
+                        class="text-xs font-bold text-emerald-400 font-mono block truncate">00:00:00</span>
+                </div>
+            </div>
+
+            <!-- Enrolled Courses -->
+            <div>
+                <span class="text-[10px] font-bold text-white/40 uppercase block mb-1.5">Enrolled Course Shells</span>
+                <div id="modal-learner-courses" class="flex flex-wrap gap-2 max-h-24 overflow-y-auto custom-scroll">
+                </div>
+            </div>
+
+            <!-- Pending Submissions Breakdown List -->
+            <div>
+                <span class="text-[10px] font-bold text-white/40 uppercase block mb-1.5">Pending Submissions
+                    Breakdown</span>
+                <div id="modal-learner-pending-list" class="space-y-1.5 max-h-32 overflow-y-auto custom-scroll"></div>
             </div>
         </div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════════════ -->
-    <!-- DASHBOARD VIEW -->
-    <!-- ═══════════════════════════════════════════════════════════════ -->
-    <div id="dashboard-view" class="hidden space-y-6">
-
-        <!-- Header + Filters -->
-        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-                <h2 class="text-xl font-extrabold shimmer">Inactive Learner Dashboard</h2>
-                <p class="text-white/35 text-xs mt-0.5">Real-time analytics synced from Google Sheets</p>
+    <!-- Mac-style Console Scanning & Course Verification Modal -->
+    <div id="mac-console-modal"
+        class="hidden fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl transition-all">
+        <div class="bg-black max-w-2xl w-full rounded-2xl border border-white/20 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+            style="box-shadow: 0 25px 60px rgba(0,0,0,0.95);">
+            <!-- Mac Console Title Bar -->
+            <div class="bg-white/5 px-4 py-3 border-b border-white/10 flex items-center justify-between flex-shrink-0">
+                <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full bg-red-500/80 inline-block"></span>
+                    <span class="w-3 h-3 rounded-full bg-yellow-500/80 inline-block"></span>
+                    <span class="w-3 h-3 rounded-full bg-emerald-500/80 inline-block"></span>
+                    <span class="text-xs font-mono text-white/50 ml-2 font-semibold">course-date-verification.sh —
+                        zsh</span>
+                </div>
+                <span
+                    class="text-[10px] font-mono text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">VERIFYING
+                    COURSE DATES</span>
             </div>
-            <div class="flex items-center gap-3 flex-wrap">
-                <!-- Course selector -->
-                <select id="course-filter" onchange="filterDashboard()"
-                    class="glass-sm text-xs text-white/80 rounded-xl px-4 py-2.5 border border-white/08 bg-transparent cursor-pointer min-w-[200px]">
-                    <option value="ALL">All Courses</option>
-                </select>
-                <button onclick="loadDashboard(true)"
-                    class="glass-sm px-4 py-2.5 rounded-xl text-xs text-white/60 hover:text-white border border-white/06 hover:border-white/15 transition-all flex items-center gap-2">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                    Refresh
+            <!-- Mac Terminal Output Window -->
+            <div class="p-5 font-mono text-xs text-white/90 space-y-3 overflow-y-auto custom-scroll bg-black/90 flex-1"
+                id="mac-console-output">
+                <div class="text-emerald-400">$ edgewood-analytics --verify-course-start-dates</div>
+            </div>
+            <!-- Mac Console Action Footer -->
+            <div class="bg-white/5 px-5 py-3 border-t border-white/10 flex items-center justify-between flex-shrink-0">
+                <span id="mac-console-status-text" class="text-xs font-mono text-white/50">Scanning sheet course
+                    shells...</span>
+                <button id="mac-console-ok-btn" onclick="confirmDateFilterFromConsole()" disabled
+                    class="px-5 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold text-white rounded-lg transition-all shadow-md cursor-pointer">
+                    OK • View Dashboard
                 </button>
             </div>
         </div>
+    </div>
 
-        <!-- Loading skeleton -->
-        <div id="dash-loading" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
-            <div class="glass-sm rounded-2xl h-20 animate-pulse"></div>
-            <div class="glass-sm rounded-2xl h-20 animate-pulse"></div>
-            <div class="glass-sm rounded-2xl h-20 animate-pulse"></div>
-            <div class="glass-sm rounded-2xl h-20 animate-pulse"></div>
-            <div class="glass-sm rounded-2xl h-20 animate-pulse"></div>
-            <div class="glass-sm rounded-2xl h-20 animate-pulse"></div>
-        </div>
+    <script>
+        // ────────────────────────────────────────────────────────────────────────────
+        // State
+        // ────────────────────────────────────────────────────────────────────────────
+        let _rawData = null;
+        let _pollInterval = null;
+        let _silentInterval = null;
+        let leaderboardCurrentPage = 1;
+        const leaderboardPageSize = 10;
 
-        <div id="dash-content" class="hidden space-y-6">
+        // Cookie & LocalStorage Helper for Excluded Modules
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return decodeURIComponent(parts.pop().split(';').shift());
+            return null;
+        }
 
-            <!-- KPI Cards -->
-            <div class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-4" id="kpi-grid">
-                <div class="kpi-card glass rounded-2xl p-4">
-                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1.5">Courses</span>
-                    <span id="kpi-courses" class="text-2xl font-black text-white">--</span>
-                </div>
-                <div class="kpi-card glass rounded-2xl p-4">
-                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1.5">Total Learners</span>
-                    <span id="kpi-total" class="text-2xl font-black text-white">--</span>
-                </div>
-                <div class="kpi-card glass rounded-2xl p-4">
-                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1.5">Active</span>
-                    <span id="kpi-active" class="text-2xl font-black text-emerald-400">--</span>
-                </div>
-                <div class="kpi-card glass rounded-2xl p-4">
-                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1.5">Inactive</span>
-                    <span id="kpi-inactive" class="text-2xl font-black text-red-400">--</span>
-                </div>
-                <div class="kpi-card glass rounded-2xl p-4">
-                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1.5">Missing Subs</span>
-                    <span id="kpi-missing" class="text-2xl font-black text-amber-400">--</span>
-                </div>
-                <div class="kpi-card glass rounded-2xl p-4">
-                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1.5">Submitted</span>
-                    <span id="kpi-submitted" class="text-2xl font-black text-blue-400">--</span>
-                </div>
-                <div class="kpi-card glass rounded-2xl p-4">
-                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-1.5">Avg Time</span>
-                    <div class="flex items-baseline gap-1"><span id="kpi-time" class="text-2xl font-black text-white">--</span><span class="text-[10px] text-white/40">hrs</span></div>
-                </div>
-            </div>
+        function setCookie(name, value, days = 365) {
+            const d = new Date();
+            d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
+            document.cookie = `${name}=${encodeURIComponent(value)};expires=${d.toUTCString()};path=/`;
+        }
 
-            <!-- Row 2: Charts + Category breakdown -->
-            <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+        function saveExcludedModules() {
+            const headerInput = document.getElementById('excluded-modules-input');
+            const val = headerInput ? headerInput.value.trim() : '';
 
-                <!-- Engagement Ratio Chart -->
-                <div class="glass rounded-2xl p-5 flex flex-col items-center relative min-h-[280px] justify-center">
-                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider absolute top-5 left-5">Engagement Ratio</span>
-                    <div class="relative w-44 h-44 mt-4">
-                        <canvas id="donut-chart"></canvas>
-                        <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                            <span id="donut-pct" class="text-2xl font-black text-white">--%</span>
-                            <span class="text-[8px] text-white/40 uppercase tracking-wide">Active Rate</span>
-                        </div>
-                    </div>
-                    <div class="flex gap-4 mt-4">
-                        <div class="flex items-center gap-1.5 text-[10px] text-white/50"><div class="w-2 h-2 rounded-full bg-emerald-500"></div>Active</div>
-                        <div class="flex items-center gap-1.5 text-[10px] text-white/50"><div class="w-2 h-2 rounded-full bg-red-500"></div>Inactive</div>
-                    </div>
-                </div>
+            localStorage.setItem('excluded_modules', val);
+            setCookie('excluded_modules', val);
 
-                <!-- Category breakdown -->
-                <div class="glass rounded-2xl p-5">
-                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-4">Category Breakdown</span>
-                    <div id="cat-breakdown" class="space-y-3"></div>
-                </div>
-
-                <!-- Course breakdown -->
-                <div class="glass rounded-2xl p-5 flex flex-col">
-                    <span class="text-[9px] font-bold text-white/40 uppercase tracking-wider block mb-4">Course Performance</span>
-                    <div class="overflow-y-auto flex-grow custom-scroll max-h-52">
-                        <table class="w-full text-[11px]">
-                            <thead>
-                                <tr class="text-white/30 border-b border-white/06">
-                                    <th class="py-2 text-left font-medium">Course</th>
-                                    <th class="py-2 text-center font-medium">Total</th>
-                                    <th class="py-2 text-center font-medium">Active</th>
-                                    <th class="py-2 text-center font-medium">Inactive</th>
-                                    <th class="py-2 text-center font-medium">Missing</th>
-                                </tr>
-                            </thead>
-                            <tbody id="course-table-body" class="divide-y divide-white/5"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Tab Selector Bar -->
-            <div class="flex border-b border-white/10 gap-2 sm:gap-6 mb-6 overflow-x-auto custom-scroll">
-                <button id="dash-tab-watchlist" onclick="switchDashboardTab('watchlist')"
-                    class="border-b-2 border-[#EE2C3C] text-white px-2 py-3 text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap">
-                    Inactive Watchlist
-                </button>
-                <button id="dash-tab-consumers" onclick="switchDashboardTab('consumers')"
-                    class="border-b-2 border-transparent text-white/40 hover:text-white/70 px-2 py-3 text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap">
-                    Content Consumption Leaderboard
-                </button>
-                <button id="dash-tab-cohorts" onclick="switchDashboardTab('cohorts')"
-                    class="border-b-2 border-transparent text-white/40 hover:text-white/70 px-2 py-3 text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap">
-                    Cohort Performance Analysis
-                </button>
-            </div>
-
-            <!-- Tab 1: Inactive Watchlist -->
-            <div id="sect-watchlist" class="glass rounded-2xl p-5">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="flex items-center gap-2">
-                        <div class="w-1 h-4 bg-[#EE2C3C] rounded-full"></div>
-                        <span class="text-[9px] font-bold text-white/60 uppercase tracking-wider">Inactive Learner Watchlist</span>
-                        <span id="watchlist-count" class="badge badge-inactive ml-1">0</span>
-                    </div>
-                    <div class="flex gap-2">
-                        <input id="watchlist-search" oninput="filterWatchlist(true)" type="text" placeholder="Search name or email..."
-                            class="glass-sm text-xs text-white/70 placeholder-white/25 px-3 py-1.5 rounded-lg border border-white/06 bg-transparent w-48"/>
-                        <select id="watchlist-cat" onchange="filterWatchlist(true)"
-                            class="glass-sm text-xs text-white/70 px-3 py-1.5 rounded-lg border border-white/06 bg-transparent">
-                            <option value="">All Categories</option>
-                            <option value="In Active">In Active</option>
-                            <option value="MISSED SUBMISSION">Missed Submission</option>
-                            <option value="NOT ACTIVE">Not Active</option>
-                            <option value="No Submission">No Submission</option>
-                            <option value="ACTIVE">Active</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="overflow-x-auto custom-scroll">
-                    <table class="w-full text-[11px] min-w-[700px]">
-                        <thead>
-                            <tr class="text-white/30 border-b border-white/06">
-                                <th class="py-2.5 text-left font-medium pl-2">Learner</th>
-                                <th class="py-2.5 text-left font-medium">Email</th>
-                                <th class="py-2.5 text-left font-medium">Course / Cohort</th>
-                                <th class="py-2.5 text-center font-medium">Category</th>
-                                <th class="py-2.5 text-center font-medium">Missing</th>
-                                <th class="py-2.5 text-center font-medium">Overdue</th>
-                                <th class="py-2.5 text-center font-medium">Time Spent</th>
-                                <th class="py-2.5 text-left font-medium">Last Activity</th>
-                            </tr>
-                        </thead>
-                        <tbody id="watchlist-body" class="divide-y divide-white/5"></tbody>
-                    </table>
-                </div>
-                <div id="watchlist-pagination" class="flex justify-center items-center gap-2 mt-4 pb-1"></div>
-                <p id="watchlist-empty" class="hidden text-center text-white/25 text-xs py-8">No inactive learners found for the selected filters.</p>
-            </div>
-
-            <!-- Tab 2: Content Consumption Leaderboard -->
-            <div id="sect-consumers" class="glass rounded-2xl p-5 hidden">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="flex items-center gap-2">
-                        <div class="w-1 h-4 bg-emerald-500 rounded-full"></div>
-                        <span class="text-[9px] font-bold text-white/60 uppercase tracking-wider">Learner Content Consumption — Time Spent Leaderboard</span>
-                        <span id="consumers-count" class="badge badge-active ml-1">0</span>
-                    </div>
-                    <div class="flex gap-2">
-                        <input id="consumers-search" oninput="filterConsumers(true)" type="text" placeholder="Search name or email..."
-                            class="glass-sm text-xs text-white/70 placeholder-white/25 px-3 py-1.5 rounded-lg border border-white/06 bg-transparent w-48"/>
-                        <select id="consumers-status" onchange="filterConsumers(true)"
-                            class="glass-sm text-xs text-white/70 px-3 py-1.5 rounded-lg border border-white/06 bg-transparent">
-                            <option value="">All Statuses</option>
-                            <option value="Active">Active</option>
-                            <option value="Inactive">Inactive</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="overflow-x-auto custom-scroll">
-                    <table class="w-full text-[11px] min-w-[600px]">
-                        <thead>
-                            <tr class="text-white/30 border-b border-white/06">
-                                <th class="py-2.5 text-center font-medium w-10">#</th>
-                                <th class="py-2.5 text-left font-medium">Learner</th>
-                                <th class="py-2.5 text-left font-medium">Course</th>
-                                <th class="py-2.5 text-center font-medium">Time Spent</th>
-                                <th class="py-2.5 text-center font-medium">Submitted</th>
-                                <th class="py-2.5 text-center font-medium">Total Asgn</th>
-                                <th class="py-2.5 text-center font-medium">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="top-learners-body" class="divide-y divide-white/5"></tbody>
-                    </table>
-                </div>
-                <div id="consumers-pagination" class="flex justify-center items-center gap-2 mt-4 pb-1"></div>
-                <p id="consumers-empty" class="hidden text-center text-white/25 text-xs py-8">No learners found for the selected filters.</p>
-            </div>
-
-            <!-- Tab 3: Cohort Performance Analysis -->
-            <div id="sect-cohorts" class="glass rounded-2xl p-5 hidden">
-                <div class="flex items-center gap-2 mb-4">
-                    <div class="w-1 h-4 bg-indigo-500 rounded-full"></div>
-                    <span class="text-[9px] font-bold text-white/60 uppercase tracking-wider">Cohort Analysis & Performance Insights</span>
-                </div>
-                <div class="overflow-x-auto custom-scroll">
-                    <table class="w-full text-[11px] min-w-[600px]">
-                        <thead>
-                            <tr class="text-white/30 border-b border-white/06">
-                                <th class="py-2.5 text-left font-medium pl-2">Cohort</th>
-                                <th class="py-2.5 text-center font-medium">Total Learners</th>
-                                <th class="py-2.5 text-center font-medium">Active Learners</th>
-                                <th class="py-2.5 text-center font-medium">Inactive Learners</th>
-                                <th class="py-2.5 text-center font-medium">Inactivity Rate</th>
-                                <th class="py-2.5 text-center font-medium">Total Missing Subs</th>
-                                <th class="py-2.5 text-center font-medium">Avg Time Spent</th>
-                            </tr>
-                        </thead>
-                        <tbody id="cohorts-table-body" class="divide-y divide-white/5"></tbody>
-                    </table>
-                </div>
-                <div id="cohorts-pagination" class="flex justify-center items-center gap-2 mt-4 pb-1"></div>
-                <p id="cohorts-empty" class="hidden text-center text-white/25 text-xs py-8">No cohort metrics found.</p>
-            </div>
-
-        </div><!-- /dash-content -->
-    </div><!-- /dashboard-view -->
-
-</div><!-- /container -->
-
-<script>
-// ────────────────────────────────────────────────────────────────────────────
-// State
-// ────────────────────────────────────────────────────────────────────────────
-let _rawData = null;
-let _donutChart = null;
-let _pollInterval = null;
-
-// ────────────────────────────────────────────────────────────────────────────
-// Navigation
-// ────────────────────────────────────────────────────────────────────────────
-function switchView(v) {
-    document.getElementById('audit-view').classList.toggle('hidden', v !== 'audit');
-    document.getElementById('dashboard-view').classList.toggle('hidden', v !== 'dashboard');
-    document.getElementById('nav-audit').className = v === 'audit'
-        ? 'tab-active px-5 py-2 text-xs font-semibold rounded-full border transition-all'
-        : 'tab-inactive px-5 py-2 text-xs font-semibold rounded-full border border-transparent transition-all';
-    document.getElementById('nav-dashboard').className = v === 'dashboard'
-        ? 'tab-active px-5 py-2 text-xs font-semibold rounded-full border transition-all'
-        : 'tab-inactive px-5 py-2 text-xs font-semibold rounded-full border border-transparent transition-all';
-    if (v === 'dashboard') loadDashboard();
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Audit form
-// ────────────────────────────────────────────────────────────────────────────
-document.getElementById('audit-form').addEventListener('submit', async e => {
-    e.preventDefault();
-    const codes = document.getElementById('course-input').value.trim();
-    if (!codes) return;
-
-    const btn  = document.getElementById('run-btn');
-    const lbl  = document.getElementById('btn-label');
-    const icon = document.getElementById('btn-icon');
-    const spin = document.getElementById('btn-spin');
-    const wrap = document.getElementById('progress-wrap');
-    const ptxt = document.getElementById('progress-text');
-
-    // Lock UI
-    btn.disabled = true;
-    lbl.textContent = 'Running Audit...';
-    icon.classList.add('hidden');
-    spin.classList.remove('hidden');
-    wrap.classList.remove('hidden');
-    ptxt.textContent = 'Starting...';
-    ptxt.className = 'text-xs font-mono text-white/75 truncate';
-
-    function fullReset(label='Run Engagement Audit') {
-        if (_pollInterval) clearInterval(_pollInterval);
-        btn.disabled = false;
-        lbl.textContent = label;
-        icon.classList.remove('hidden');
-        spin.classList.add('hidden');
-        wrap.classList.add('hidden');
-        ptxt.textContent = '';
-        ptxt.className = 'text-xs font-mono text-white/75 truncate';
-    }
-
-    try {
-        const res  = await fetch('/start', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({course_codes: codes}) });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        let unknownCount = 0;
-        if (_pollInterval) clearInterval(_pollInterval);
-        _pollInterval = setInterval(async () => {
-            try {
-                const sr = await fetch(`/status/${data.task_id}`);
-                const sd = await sr.json();
-                
-                if (sd.status === 'Unknown Task') {
-                    unknownCount++;
-                    if (unknownCount > 5) {
-                        clearInterval(_pollInterval);
-                        ptxt.textContent = 'Task status lost. Please click Run Engagement Audit to re-run.';
-                        ptxt.className = 'text-xs font-mono text-amber-400 truncate';
-                        btn.disabled = false;
-                        lbl.textContent = 'Run Engagement Audit';
-                        icon.classList.remove('hidden');
-                        spin.classList.add('hidden');
-                        return;
-                    }
-                } else {
-                    unknownCount = 0;
-                    ptxt.textContent = sd.status;
-                }
-
-                if (sd.status === 'COMPLETE') {
-                    clearInterval(_pollInterval);
-                    ptxt.innerHTML = `Audit Complete! <a href="/download/${data.task_id}" target="_blank" class="underline font-bold text-emerald-300 ml-1">Download Excel Report</a>`;
-                    ptxt.className = 'text-xs font-mono text-emerald-400 truncate';
-                    
-                    const iframe = document.createElement('iframe');
-                    iframe.style.display = 'none';
-                    iframe.src = `/download/${data.task_id}`;
-                    document.body.appendChild(iframe);
-                    setTimeout(() => {
-                        try { document.body.removeChild(iframe); } catch(e){}
-                        btn.disabled = false;
-                        lbl.textContent = 'Run New Audit';
-                        icon.classList.remove('hidden');
-                        spin.classList.add('hidden');
-                    }, 4000);
-                } else if (sd.status.startsWith('ERROR')) {
-                    clearInterval(_pollInterval);
-                    ptxt.className = 'text-xs font-mono text-red-400 truncate';
-                    btn.disabled = false;
-                    lbl.textContent = 'Retry Audit';
-                    icon.classList.remove('hidden');
-                    spin.classList.add('hidden');
-                }
-            } catch(pollErr) {
-                // network blip — keep polling
+            const badge = document.getElementById('save-status-badge');
+            if (badge) {
+                badge.classList.remove('hidden');
+                badge.classList.add('inline-flex');
+                setTimeout(() => {
+                    badge.classList.remove('inline-flex');
+                    badge.classList.add('hidden');
+                }, 3000);
             }
-        }, 600);
-    } catch (err) {
-        ptxt.textContent = 'Error: ' + err.message;
-        ptxt.className = 'text-xs font-mono text-red-400 truncate';
-        fullReset('Retry');
-    }
-});
+        }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Dashboard
-// ────────────────────────────────────────────────────────────────────────────
-async function loadDashboard(force=false) {
-    document.getElementById('dash-loading').classList.remove('hidden');
-    document.getElementById('dash-content').classList.add('hidden');
+        function initExcludedModules() {
+            const saved = localStorage.getItem('excluded_modules') || getCookie('excluded_modules') || '';
+            const headerInput = document.getElementById('excluded-modules-input');
 
-    try {
-        const r = await fetch('/api/dashboard' + (force ? '?t='+Date.now() : ''));
-        if (!r.ok) throw new Error('Failed to fetch dashboard data');
-        _rawData = await r.json();
+            if (headerInput) {
+                headerInput.value = saved;
+                headerInput.addEventListener('input', e => {
+                    const val = e.target.value;
+                    localStorage.setItem('excluded_modules', val);
+                    setCookie('excluded_modules', val);
+                });
+            }
+        }
 
-        // Populate course filter dropdown
-        const sel = document.getElementById('course-filter');
-        const prev = sel.value;
-        sel.innerHTML = '<option value="ALL">All Courses</option>';
-        (_rawData.course_tabs || []).forEach(tab => {
-            const o = document.createElement('option');
-            o.value = tab; o.textContent = tab;
-            sel.appendChild(o);
+        function initFlatpickr() {
+            if (typeof flatpickr !== 'undefined') {
+                flatpickr("#dash-start-date", {
+                    dateFormat: "Y-m-d",
+                    altInput: true,
+                    altFormat: "d - m - Y",
+                    monthSelectorType: "dropdown",
+                    allowInput: true,
+                    onChange: function () {
+                        applyDashboardFilters();
+                    }
+                });
+                flatpickr("#dash-end-date", {
+                    dateFormat: "Y-m-d",
+                    altInput: true,
+                    altFormat: "d - m - Y",
+                    monthSelectorType: "dropdown",
+                    allowInput: true,
+                    onChange: function () {
+                        applyDashboardFilters();
+                    }
+                });
+            }
+        }
+
+        function saveFilterPreferences() {
+            const course = document.getElementById('course-filter-select')?.value || 'ALL';
+            const dateToggle = document.getElementById('date-filter-toggle')?.checked ? '1' : '0';
+            const startDate = document.getElementById('dash-start-date')?.value || '';
+            const endDate = document.getElementById('dash-end-date')?.value || '';
+
+            setCookie('pref_course_filter', course, 30);
+            setCookie('pref_date_toggle', dateToggle, 30);
+            setCookie('pref_start_date', startDate, 30);
+            setCookie('pref_end_date', endDate, 30);
+
+            localStorage.setItem('pref_course_filter', course);
+            localStorage.setItem('pref_date_toggle', dateToggle);
+            localStorage.setItem('pref_start_date', startDate);
+            localStorage.setItem('pref_end_date', endDate);
+        }
+
+        function loadSavedFilterPreferences() {
+            const course = getCookie('pref_course_filter') || localStorage.getItem('pref_course_filter') || 'ALL';
+            const dateToggle = getCookie('pref_date_toggle') || localStorage.getItem('pref_date_toggle') || '0';
+            const startDate = getCookie('pref_start_date') || localStorage.getItem('pref_start_date') || '';
+            const endDate = getCookie('pref_end_date') || localStorage.getItem('pref_end_date') || '';
+
+            const courseSel = document.getElementById('course-filter-select');
+            if (courseSel && course !== 'ALL') {
+                courseSel.value = course;
+            }
+
+            const toggle = document.getElementById('date-filter-toggle');
+            const startEl = document.getElementById('dash-start-date');
+            const endEl = document.getElementById('dash-end-date');
+
+            if (startEl && startDate) startEl.value = startDate;
+            if (endEl && endDate) endEl.value = endDate;
+
+            if (dateToggle === '1' && (startDate || endDate)) {
+                if (toggle) toggle.checked = true;
+                const controls = document.getElementById('date-range-controls');
+                if (controls) controls.classList.remove('opacity-40', 'pointer-events-none');
+
+                const badge = document.getElementById('active-date-badge');
+                const badgeText = document.getElementById('active-date-text');
+                if (badge && badgeText) {
+                    badgeText.textContent = `📅 Filter Range: ${startDate || 'Earliest'} to ${endDate || 'Latest'}`;
+                    badge.classList.remove('hidden');
+                    badge.classList.add('flex');
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initExcludedModules();
+            initFlatpickr();
+            loadSavedFilterPreferences();
+            csInitFilter(); // Initialize course shell input filter keydown/change listeners
+            // Pre-fetch dashboard data immediately on page load (background warm-up)
+            loadDashboardSilently();
+            // Continue refreshing every 60 seconds (1 minute) in background seamlessly without page blink
+            _silentInterval = setInterval(() => {
+                loadDashboardSilently();
+            }, 60000);
+
+            // Cmd+K / Ctrl+K keyboard shortcut focus
+            document.addEventListener('keydown', (e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+                    const searchInput = document.getElementById('learner-nav-search-input');
+                    if (searchInput && searchInput.offsetParent !== null) {
+                        e.preventDefault();
+                        searchInput.focus();
+                    }
+                }
+            });
         });
-        if (prev && prev !== 'ALL') sel.value = prev;
 
-        renderDashboard(_rawData);
-    } catch (e) {
-        console.error(e);
-        document.getElementById('dash-loading').classList.add('hidden');
-    }
-}
+        async function manualRefreshDashboard() {
+            const btn = document.getElementById('manual-refresh-btn');
+            const icon = document.getElementById('refresh-icon-spin');
+            if (icon) icon.classList.add('spin');
+            if (btn) btn.disabled = true;
 
-function filterDashboard() {
-    if (!_rawData) return;
-    const sel  = document.getElementById('course-filter').value;
-    if (sel === 'ALL') { renderDashboard(_rawData); return; }
-
-    // Filter raw data to selected course
-    const filtered = deepFilterData(_rawData, sel);
-    renderDashboard(filtered);
-}
-
-function deepFilterData(data, courseId) {
-    const wl = (data.watchlist || []).filter(r => r.course_id === courseId || r.course_name === courseId);
-    const tl = (data.top_learners || []).filter(r => r.course_name === courseId || r.course_name.includes(courseId));
-    const cb = {};
-    if (data.course_breakdown[courseId]) cb[courseId] = data.course_breakdown[courseId];
-
-    const active   = wl.reduce((acc, r) => acc, 0); // watchlist is already inactive
-    const inactive = wl.length;
-    const cm = data.course_breakdown[courseId] || {};
-
-    return {
-        ...data,
-        kpis: {
-            total_courses: 1,
-            total_learners: cm.total || 0,
-            active_learners: cm.active || 0,
-            inactive_learners: cm.inactive || 0,
-            total_missing: cm.missing || 0,
-            total_submitted: cm.submitted || 0,
-            avg_time_hours: data.kpis.avg_time_hours,
-        },
-        watchlist: wl,
-        top_learners: tl,
-        course_breakdown: cb,
-    };
-}
-
-function renderDashboard(data) {
-    const k = data.kpis;
-    document.getElementById('kpi-courses').textContent   = k.total_courses   ?? '--';
-    document.getElementById('kpi-total').textContent     = k.total_learners  ?? '--';
-    document.getElementById('kpi-active').textContent    = k.active_learners ?? '--';
-    document.getElementById('kpi-inactive').textContent  = k.inactive_learners ?? '--';
-    document.getElementById('kpi-missing').textContent   = k.total_missing   ?? '--';
-    document.getElementById('kpi-submitted').textContent = k.total_submitted ?? '--';
-    document.getElementById('kpi-time').textContent      = k.avg_time_hours  ?? '--';
-
-    // Donut chart
-    const pct = k.total_learners > 0 ? Math.round(k.active_learners / k.total_learners * 100) : 0;
-    document.getElementById('donut-pct').textContent = pct + '%';
-    const ctx = document.getElementById('donut-chart').getContext('2d');
-    if (_donutChart) _donutChart.destroy();
-    _donutChart = new Chart(ctx, {
-        type:'doughnut',
-        data:{
-            labels:['Active','Inactive'],
-            datasets:[{
-                data:[k.active_learners, k.inactive_learners],
-                backgroundColor:['#10b981','#ef4444'],
-                borderWidth:0,
-                cutout:'76%',
-                borderRadius:4
-            }]
-        },
-        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:true}}}
-    });
-
-    // Category breakdown
-    const catDiv = document.getElementById('cat-breakdown');
-    catDiv.innerHTML = '';
-    const total = k.total_learners || 1;
-    const CAT_META = {
-        'ACTIVE':{'label':'Active','cls':'badge-active'},
-        'MISSED SUBMISSION':{'label':'Missed Submission','cls':'badge-missed'},
-        'NOT ACTIVE':{'label':'Not Active','cls':'badge-notactive'},
-        'In Active':{'label':'In Active','cls':'badge-none'},
-        'No Submission':{'label':'No Submission','cls':'badge-low'},
-        'NO ACTIVITY':{'label':'In Active','cls':'badge-none'},
-        'LOW ACTIVITY - ASSIGNMENTS COMPLETED':{'label':'Low Activity','cls':'badge-low'},
-    };
-    const cats = data.cat_counts || {};
-    Object.entries(cats).sort((a,b)=>b[1]-a[1]).forEach(([cat,cnt]) => {
-        const m = CAT_META[cat] || {label:cat,cls:'badge-none'};
-        const pct = Math.round(cnt / total * 100);
-        catDiv.innerHTML += `
-        <div>
-          <div class="flex items-center justify-between mb-1">
-            <span class="badge ${m.cls}">${m.label}</span>
-            <span class="text-white/60 text-[11px]">${cnt} <span class="text-white/30">(${pct}%)</span></span>
-          </div>
-          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${pct>50?'#10b981':'#ef4444'}"></div></div>
-        </div>`;
-    });
-
-    // Course table
-    const ctb = document.getElementById('course-table-body');
-    ctb.innerHTML = '';
-    Object.entries(data.course_breakdown || {}).forEach(([cid, cm]) => {
-        const inPct = cm.total > 0 ? Math.round(cm.inactive/cm.total*100) : 0;
-        ctb.innerHTML += `<tr class="table-row">
-          <td class="py-2.5 text-white/80 font-mono text-[10px] max-w-[130px] truncate">${cid}</td>
-          <td class="py-2.5 text-center text-white/70">${cm.total}</td>
-          <td class="py-2.5 text-center text-emerald-400">${cm.active}</td>
-          <td class="py-2.5 text-center"><span class="${cm.inactive>0?'text-red-400':'text-white/50'}">${cm.inactive}</span></td>
-          <td class="py-2.5 text-center text-amber-400">${cm.missing}</td>
-        </tr>`;
-    });
-
-    // Watchlist
-    _renderWatchlist(data.watchlist || []);
-
-    // Top learners
-    _renderConsumers(data.top_learners || []);
-
-    // Cohorts
-    _renderCohorts(data.cohort_breakdown || {});
-
-    document.getElementById('dash-loading').classList.add('hidden');
-    document.getElementById('dash-content').classList.remove('hidden');
-}
-
-// ── Tab switcher ────────────────────────────────────────────────────────────
-function switchDashboardTab(tabId) {
-    document.getElementById('sect-watchlist').classList.add('hidden');
-    document.getElementById('sect-consumers').classList.add('hidden');
-    document.getElementById('sect-cohorts').classList.add('hidden');
-
-    ['watchlist', 'consumers', 'cohorts'].forEach(id => {
-        const btn = document.getElementById(`dash-tab-${id}`);
-        if (btn) {
-            btn.className = 'border-b-2 border-transparent text-white/40 hover:text-white/70 px-2 py-3 text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap';
+            try {
+                await loadDashboardSilently();
+            } finally {
+                setTimeout(() => {
+                    if (icon) icon.classList.remove('spin');
+                    if (btn) btn.disabled = false;
+                }, 450);
+            }
         }
-    });
 
-    document.getElementById(`sect-${tabId}`).classList.remove('hidden');
-    const activeBtn = document.getElementById(`dash-tab-${tabId}`);
-    if (activeBtn) {
-        activeBtn.className = 'border-b-2 border-[#EE2C3C] text-white px-2 py-3 text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap';
-    }
-}
 
-// ────────────────────────────────────────────────────────────────────────────
-// Pagination Helper
-// ────────────────────────────────────────────────────────────────────────────
-function renderPagination(containerId, totalItems, pageSize, currentPage, pageVarName, callbackName) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    const totalPages = Math.ceil(totalItems / pageSize);
-    if (totalPages <= 1) {
-        container.innerHTML = '';
-        return;
-    }
-    let html = '';
-    for (let i = 1; i <= totalPages; i++) {
-        if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) {
-            const active = i === currentPage ? 'bg-white/20 text-white' : 'bg-transparent text-white/40 hover:bg-white/10';
-            html += `<button onclick="${pageVarName}=${i}; ${callbackName}()" class="px-2.5 py-1 text-[10px] font-bold rounded ${active} transition-all">${i}</button>`;
-        } else if (i === currentPage - 2 || i === currentPage + 2) {
-            html += `<span class="text-white/20 text-[10px] px-1">...</span>`;
+        // Navigation & View Toggle
+        function switchView(v) {
+            document.getElementById('audit-view').classList.toggle('hidden', v !== 'audit');
+            document.getElementById('dashboard-view').classList.toggle('hidden', v !== 'dashboard');
+
+            const exclContainer = document.getElementById('excluded-assessment-container');
+            if (exclContainer) {
+                exclContainer.style.display = (v === 'dashboard') ? 'none' : 'flex';
+            }
+
+            const learnerSearchNav = document.getElementById('learner-search-nav-container');
+            if (learnerSearchNav) {
+                learnerSearchNav.style.display = (v === 'dashboard') ? 'flex' : 'none';
+            }
+
+            document.getElementById('nav-audit').className = v === 'audit'
+                ? 'tab-active px-5 py-2 text-xs font-semibold rounded-full border transition-all'
+                : 'tab-inactive px-5 py-2 text-xs font-semibold rounded-full border border-transparent transition-all';
+            document.getElementById('nav-dashboard').className = v === 'dashboard'
+                ? 'tab-active px-5 py-2 text-xs font-semibold rounded-full border transition-all'
+                : 'tab-inactive px-5 py-2 text-xs font-semibold rounded-full border border-transparent transition-all';
+
+            if (v === 'dashboard') {
+                if (_rawData) {
+                    // Data is already pre-fetched in background — show instantly
+                    document.getElementById('dash-loading').classList.add('hidden');
+                    document.getElementById('dash-content').classList.remove('hidden');
+                    applyDashboardFilters();
+                } else {
+                    loadDashboard();
+                }
+            }
         }
-    }
-    container.innerHTML = html;
-}
 
-// ── Watchlist filtering ──────────────────────────────────────────────────────
-let _watchlistData = [];
-let watchlistPage = 1;
+        function switchDashboardSection(sec) {
+            document.getElementById('sec-course-performance').classList.add('hidden');
+            document.getElementById('sec-leaderboard').classList.add('hidden');
+            document.getElementById('sec-cohort').classList.add('hidden');
 
-function _renderWatchlist(list) {
-    _watchlistData = list;
-    watchlistPage = 1;
-    filterWatchlist();
-}
+            ['course', 'leaderboard', 'cohort'].forEach(s => {
+                const btn = document.getElementById(`tab-btn-${s}`);
+                if (btn) btn.className = 'px-4 py-2.5 text-xs font-bold text-white/40 hover:text-white border-b-2 border-transparent transition-all cursor-pointer';
+            });
 
-function filterWatchlist(resetPage = false) {
-    if (resetPage) watchlistPage = 1;
-    const search = (document.getElementById('watchlist-search').value || '').toLowerCase();
-    const cat    = (document.getElementById('watchlist-cat').value || '').toLowerCase();
+            if (sec === 'course') {
+                document.getElementById('sec-course-performance').classList.remove('hidden');
+                document.getElementById('tab-btn-course').className = 'px-4 py-2.5 text-xs font-bold text-white border-b-2 border-blue-500 transition-all cursor-pointer';
+            } else if (sec === 'leaderboard') {
+                document.getElementById('sec-leaderboard').classList.remove('hidden');
+                document.getElementById('tab-btn-leaderboard').className = 'px-4 py-2.5 text-xs font-bold text-white border-b-2 border-blue-500 transition-all cursor-pointer';
+            } else if (sec === 'cohort') {
+                document.getElementById('sec-cohort').classList.remove('hidden');
+                document.getElementById('tab-btn-cohort').className = 'px-4 py-2.5 text-xs font-bold text-white border-b-2 border-blue-500 transition-all cursor-pointer';
+            }
+        }
 
-    const filtered = _watchlistData.filter(r => {
-        const matchSearch = !search || r.learner_name.toLowerCase().includes(search) || (r.email||'').toLowerCase().includes(search);
-        const matchCat    = !cat    || r.category.toLowerCase().includes(cat);
-        return matchSearch && matchCat;
-    });
+        // Dismiss search dropdown on click outside
+        document.addEventListener('click', (e) => {
+            const searchContainer = document.getElementById('learner-search-nav-container');
+            const dropdown = document.getElementById('learner-search-dropdown');
+            if (searchContainer && dropdown && !searchContainer.contains(e.target)) {
+                dropdown.classList.add('hidden');
+            }
+        });
 
-    const tbody = document.getElementById('watchlist-body');
-    const empty = document.getElementById('watchlist-empty');
-    document.getElementById('watchlist-count').textContent = filtered.length;
+        function toggleDateFilterMode() {
+            const isChecked = document.getElementById('date-filter-toggle').checked;
+            const controls = document.getElementById('date-range-controls');
+            if (controls) {
+                if (isChecked) {
+                    controls.classList.remove('opacity-40', 'pointer-events-none');
+                } else {
+                    cancelDateFilter();
+                    return;
+                }
+            }
+            applyDashboardFilters();
+        }
 
-    if (!filtered.length) {
-        tbody.innerHTML = '';
-        document.getElementById('watchlist-pagination').innerHTML = '';
-        empty.classList.remove('hidden');
-        return;
-    }
-    empty.classList.add('hidden');
+        async function triggerDateRangeFilter() {
+            const isChecked = document.getElementById('date-filter-toggle')?.checked;
+            if (!isChecked) {
+                document.getElementById('date-filter-toggle').checked = true;
+                const controls = document.getElementById('date-range-controls');
+                if (controls) controls.classList.remove('opacity-40', 'pointer-events-none');
+            }
 
-    const PAGE_SIZE = 15;
-    const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-    if (watchlistPage > totalPages) watchlistPage = totalPages;
-    const startIdx = (watchlistPage - 1) * PAGE_SIZE;
-    const paged = filtered.slice(startIdx, startIdx + PAGE_SIZE);
+            const startVal = document.getElementById('dash-start-date')?.value || '';
+            const endVal = document.getElementById('dash-end-date')?.value || '';
+            const selectedCourse = document.getElementById('course-filter-select')?.value || 'ALL';
 
-    const CAT_BADGE = {
-        'In Active':'badge-none',
-        'MISSED SUBMISSION':'badge-missed',
-        'NOT ACTIVE':'badge-notactive',
-        'No Submission':'badge-low',
-        'ACTIVE':'badge-active',
-        'NO ACTIVITY':'badge-none',
-        'LOW ACTIVITY - ASSIGNMENTS COMPLETED':'badge-low',
-    };
+            await runMacConsoleFilterAnimation(startVal, endVal, selectedCourse);
 
-    tbody.innerHTML = paged.map(r => `
-        <tr class="table-row">
-          <td class="py-3 pl-2"><div class="text-white/90 font-medium">${r.learner_name}</div><div class="text-white/35 text-[10px]">${r.cohort||''}</div></td>
-          <td class="py-3 text-white/55 text-[10px]">${r.email||'-'}</td>
-          <td class="py-3"><div class="text-white/70 text-[10px] font-mono truncate max-w-[160px]">${r.course_name}</div></td>
-          <td class="py-3 text-center"><span class="badge ${CAT_BADGE[r.category]||'badge-none'} text-[9px]">${r.category}</span></td>
-          <td class="py-3 text-center ${r.missing>0?'text-amber-400':'text-white/40'}">${r.missing}</td>
-          <td class="py-3 text-center ${r.overdue>0?'text-red-400':'text-white/40'}">${r.overdue}</td>
-          <td class="py-3 text-center font-mono text-white/60">${r.time_hms||'00:00:00'}</td>
-          <td class="py-3 text-white/45 text-[10px]">${r.last_act||'N/A'}</td>
-        </tr>`
-    ).join('');
+            const badge = document.getElementById('active-date-badge');
+            const badgeText = document.getElementById('active-date-text');
+            if (badge && badgeText) {
+                badgeText.textContent = `📅 Filter Range: ${startVal || 'Earliest'} to ${endVal || 'Latest'}`;
+                badge.classList.remove('hidden');
+                badge.classList.add('flex');
+            }
 
-    renderPagination('watchlist-pagination', filtered.length, PAGE_SIZE, watchlistPage, 'watchlistPage', 'filterWatchlist');
-}
+            applyDashboardFilters();
+        }
 
-// ── Content Consumers filtering ──────────────────────────────────────────────
-let _consumersData = [];
-let consumersPage = 1;
+        function cancelDateFilter() {
+            const toggle = document.getElementById('date-filter-toggle');
+            if (toggle) toggle.checked = false;
 
-function _renderConsumers(list) {
-    _consumersData = list;
-    consumersPage = 1;
-    filterConsumers();
-}
+            const startEl = document.getElementById('dash-start-date');
+            const endEl = document.getElementById('dash-end-date');
+            if (startEl) startEl.value = '';
+            if (endEl) endEl.value = '';
 
-function filterConsumers(resetPage = false) {
-    if (resetPage) consumersPage = 1;
-    const search = (document.getElementById('consumers-search').value || '').toLowerCase();
-    const status = document.getElementById('consumers-status').value;
+            const controls = document.getElementById('date-range-controls');
+            if (controls) controls.classList.add('opacity-40', 'pointer-events-none');
 
-    const filtered = _consumersData.filter(r => {
-        const matchSearch = !search || r.learner_name.toLowerCase().includes(search) || (r.email||'').toLowerCase().includes(search);
-        const matchStatus = !status || r.overall === status;
-        return matchSearch && matchStatus;
-    });
+            const badge = document.getElementById('active-date-badge');
+            if (badge) {
+                badge.classList.add('hidden');
+                badge.classList.remove('flex');
+            }
 
-    const tbody = document.getElementById('top-learners-body');
-    const empty = document.getElementById('consumers-empty');
-    document.getElementById('consumers-count').textContent = filtered.length;
+            setCookie('pref_date_toggle', '0', 30);
+            setCookie('pref_start_date', '', 30);
+            setCookie('pref_end_date', '', 30);
+            localStorage.setItem('pref_date_toggle', '0');
+            localStorage.removeItem('pref_start_date');
+            localStorage.removeItem('pref_end_date');
 
-    if (!filtered.length) {
-        tbody.innerHTML = '';
-        document.getElementById('consumers-pagination').innerHTML = '';
-        empty.classList.remove('hidden');
-        return;
-    }
-    empty.classList.add('hidden');
-    
-    const PAGE_SIZE = 15;
-    const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-    if (consumersPage > totalPages) consumersPage = totalPages;
-    const startIdx = (consumersPage - 1) * PAGE_SIZE;
-    const paged = filtered.slice(startIdx, startIdx + PAGE_SIZE);
+            applyDashboardFilters();
+        }
 
-    tbody.innerHTML = paged.map((l, i) => `
-        <tr class="table-row">
-          <td class="py-2.5 text-center text-white/30 font-mono">${i+1}</td>
-          <td class="py-2.5"><div class="text-white/90 font-medium">${l.learner_name}</div><div class="text-white/35 text-[10px]">${l.email || ''}</div></td>
-          <td class="py-2.5 text-white/55 text-[10px] max-w-[150px] truncate">${l.course_name}</td>
-          <td class="py-2.5 text-center font-mono text-white/80">${l.time_hms || '--'}</td>
-          <td class="py-2.5 text-center text-blue-400">${l.submitted}</td>
-          <td class="py-2.5 text-center text-white/50">${l.total_asgn}</td>
-          <td class="py-2.5 text-center"><span class="badge ${l.overall==='Active'?'badge-active':'badge-inactive'}">${l.overall}</span></td>
-        </tr>`
-    ).join('');
-    
-    renderPagination('consumers-pagination', filtered.length, PAGE_SIZE, consumersPage, 'consumersPage', 'filterConsumers');
-}
+        async function runMacConsoleFilterAnimation(startVal, endVal, selectedCourse) {
+            const modal = document.getElementById('mac-console-modal');
+            const output = document.getElementById('mac-console-output');
+            const okBtn = document.getElementById('mac-console-ok-btn');
+            const statusText = document.getElementById('mac-console-status-text');
+            if (!modal || !output) return;
 
-// ── Cohort rendering ────────────────────────────────────────────────────────
-let cohortsPage = 1;
+            if (okBtn) okBtn.disabled = true;
+            if (statusText) statusText.textContent = 'Verifying course dates...';
 
-function _renderCohorts(cohorts) {
-    const tbody = document.getElementById('cohorts-table-body');
-    const empty = document.getElementById('cohorts-empty');
+            output.innerHTML = `
+                <div class="text-emerald-400 font-bold">$ edgewood-analytics --verify-course-start-dates</div>
+                <div class="text-white/60">$ Target Range: <span class="text-amber-300 font-bold">${startVal || 'Earliest'}</span> to <span class="text-amber-300 font-bold">${endVal || 'Latest'}</span></div>
+                <div class="text-white/60">$ Course Scope: <span class="text-blue-300 font-bold">${selectedCourse === 'ALL' ? 'All Course Shells' : selectedCourse}</span></div>
+                <div class="text-white/30 text-[11px]">--------------------------------------------------------------------------------</div>
+            `;
 
-    const cohortList = Object.values(cohorts);
+            modal.classList.remove('hidden');
 
-    if (!cohortList.length) {
-        tbody.innerHTML = '';
-        document.getElementById('cohorts-pagination').innerHTML = '';
-        empty.classList.remove('hidden');
-        return;
-    }
-    empty.classList.add('hidden');
-    
-    const PAGE_SIZE = 15;
-    const totalPages = Math.ceil(cohortList.length / PAGE_SIZE);
-    if (cohortsPage > totalPages) cohortsPage = totalPages;
-    const startIdx = (cohortsPage - 1) * PAGE_SIZE;
-    const paged = cohortList.slice(startIdx, startIdx + PAGE_SIZE);
+            const filterStart = startVal ? new Date(startVal) : null;
+            const filterEnd = endVal ? new Date(endVal) : null;
 
-    tbody.innerHTML = paged.map(c => {
-        const rate = c.total > 0 ? Math.round(c.inactive / c.total * 100) : 0;
-        return `
-        <tr class="table-row">
-          <td class="py-3 pl-2 text-white/90 font-medium">${c.name}</td>
-          <td class="py-3 text-center text-white/70">${c.total}</td>
-          <td class="py-3 text-center text-emerald-400">${c.active}</td>
-          <td class="py-3 text-center text-red-400">${c.inactive}</td>
-          <td class="py-3 text-center">
-            <span class="badge ${rate > 30 ? 'badge-inactive' : 'badge-active'}">${rate}%</span>
-          </td>
-          <td class="py-3 text-center text-amber-400">${c.missing}</td>
-          <td class="py-3 text-center font-mono text-white/80">${c.avg_time_hours} hrs</td>
-        </tr>`;
-    }).join('');
-    
-    renderPagination('cohorts-pagination', cohortList.length, PAGE_SIZE, cohortsPage, 'renderCohortsPage');
-}
+            const courseMap = (_rawData && _rawData.course_breakdown) ? _rawData.course_breakdown : {};
+            const courseEntries = Object.entries(courseMap);
 
-function renderCohortsPage() {
-    _renderCohorts(_rawData.cohort_breakdown || {});
-}
-</script>
+            let matchedCount = 0;
+            let excludedCount = 0;
+
+            if (courseEntries.length === 0) {
+                output.innerHTML += `<div class="text-amber-400">⚠ No course shells found in active Sheet dataset.</div>`;
+            } else {
+                for (let i = 0; i < courseEntries.length; i++) {
+                    const [cid, cm] = courseEntries[i];
+                    if (selectedCourse !== 'ALL' && cid !== selectedCourse && (cm.name || '') !== selectedCourse) {
+                        continue;
+                    }
+
+                    // Find learner activity dates for this course
+                    const learnerDates = [];
+                    (_rawData.watchlist || []).forEach(l => {
+                        if ((l.course_id === cid || l.course_name === cm.name) && l.last_act && l.last_act !== 'N/A') {
+                            const d = new Date(l.last_act);
+                            if (!isNaN(d.getTime())) learnerDates.push(d);
+                        }
+                    });
+                    (_rawData.top_learners || []).forEach(l => {
+                        if ((l.course_id === cid || l.course_name === cm.name) && l.last_act && l.last_act !== 'N/A') {
+                            const d = new Date(l.last_act);
+                            if (!isNaN(d.getTime())) learnerDates.push(d);
+                        }
+                    });
+
+                    let startDate, endDate;
+                    if (learnerDates.length > 0) {
+                        learnerDates.sort((a, b) => a - b);
+                        startDate = learnerDates[0];
+                        endDate = new Date(startDate.getTime() + (42 * 24 * 60 * 60 * 1000));
+                    } else {
+                        startDate = new Date('2026-07-01');
+                        endDate = new Date('2026-08-12');
+                    }
+
+                    const sFmt = startDate.toISOString().split('T')[0];
+                    const eFmt = endDate.toISOString().split('T')[0];
+
+                    let isMatched = true;
+                    if (filterStart && endDate < filterStart) isMatched = false;
+                    if (filterEnd && startDate > filterEnd) isMatched = false;
+
+                    if (isMatched) matchedCount++;
+                    else excludedCount++;
+
+                    await new Promise(r => setTimeout(r, 160));
+                    output.innerHTML += `
+                        <div class="py-1 border-b border-white/5">
+                            <div class="flex items-center justify-between">
+                                <span class="font-bold text-white">${cm.name || cid}</span>
+                                <span class="text-[10px] text-white/40 font-mono">${cid}</span>
+                            </div>
+                            <div class="text-[11px] text-white/50 font-mono">📅 Start: <span class="text-white/80">${sFmt}</span> | +6-Wk End: <span class="text-white/80">${eFmt}</span></div>
+                            ${isMatched
+                            ? `<div class="text-emerald-400 font-bold text-xs mt-0.5 flex items-center gap-1">✔ MATCHED — Course shell falls within date range [${startVal || 'Earliest'} to ${endVal || 'Latest'}]</div>`
+                            : `<div class="text-amber-400 font-mono text-[11px] mt-0.5 flex items-center gap-1">✖ NOT MATCHED — Dates outside specified window</div>`
+                        }
+                        </div>
+                    `;
+                    output.scrollTop = output.scrollHeight;
+                }
+            }
+
+            output.innerHTML += `
+                <div class="pt-2 text-xs font-bold font-mono ${matchedCount > 0 ? 'text-emerald-400' : 'text-amber-400'}">
+                    ✓ Course Shell Audit Complete: ${matchedCount} Matched | ${excludedCount} Excluded
+                </div>
+            `;
+            output.scrollTop = output.scrollHeight;
+
+            if (statusText) statusText.textContent = `Verification Finished: ${matchedCount} Matched, ${excludedCount} Excluded. Click OK to view dashboard.`;
+            if (okBtn) {
+                okBtn.disabled = false;
+                okBtn.focus();
+            }
+        }
+
+        function confirmDateFilterFromConsole() {
+            const modal = document.getElementById('mac-console-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        // Audit Form Submission
+        document.getElementById('audit-form').addEventListener('submit', async e => {
+            e.preventDefault();
+            const codes = document.getElementById('course-input').value.trim();
+            if (!codes) return;
+
+            const btn = document.getElementById('run-btn');
+            const lbl = document.getElementById('btn-label');
+            const icon = document.getElementById('btn-icon');
+            const spin = document.getElementById('btn-spin');
+            const wrap = document.getElementById('progress-wrap');
+            const ptxt = document.getElementById('progress-text');
+
+            btn.disabled = true;
+            lbl.textContent = 'Running Audit...';
+            icon.classList.add('hidden');
+            spin.classList.remove('hidden');
+            wrap.classList.remove('hidden');
+            ptxt.textContent = 'Starting...';
+            ptxt.className = 'text-xs font-mono text-white/75 truncate';
+
+            const pSpin = document.getElementById('progress-spinner-icon');
+            const pCheck = document.getElementById('progress-check-icon');
+            const pStripe = document.getElementById('progress-bar-stripe');
+            if (pSpin) pSpin.classList.remove('hidden');
+            if (pCheck) pCheck.classList.add('hidden');
+            if (pStripe) pStripe.className = 'absolute left-0 top-0 bottom-0 w-1 bg-[#EE2C3C] transition-colors';
+
+            function fullReset(label = 'Run Engagement Audit') {
+                if (_pollInterval) clearInterval(_pollInterval);
+                btn.disabled = false;
+                lbl.textContent = label;
+                icon.classList.remove('hidden');
+                spin.classList.add('hidden');
+                wrap.classList.add('hidden');
+                ptxt.textContent = '';
+                ptxt.className = 'text-xs font-mono text-white/75 truncate';
+            }
+
+            try {
+                const excludedVal = document.getElementById('excluded-modules-input') ? document.getElementById('excluded-modules-input').value.trim() : '';
+                const res = await fetch('/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ course_codes: codes, excluded_modules: excludedVal })
+                });
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+
+                let unknownCount = 0;
+                if (_pollInterval) clearInterval(_pollInterval);
+                _pollInterval = setInterval(async () => {
+                    try {
+                        const sr = await fetch(`/status/${data.task_id}`);
+                        const sd = await sr.json();
+
+                        if (sd.status === 'Unknown Task') {
+                            unknownCount++;
+                            if (unknownCount > 5) {
+                                clearInterval(_pollInterval);
+                                ptxt.textContent = 'Task status lost. Click Run Engagement Audit to re-run.';
+                                ptxt.className = 'text-xs font-mono text-amber-400 truncate';
+                                btn.disabled = false;
+                                lbl.textContent = 'Run Engagement Audit';
+                                icon.classList.remove('hidden');
+                                spin.classList.add('hidden');
+                                return;
+                            }
+                        } else {
+                            unknownCount = 0;
+                            if (sd.status !== 'COMPLETE') {
+                                ptxt.textContent = sd.status;
+                            }
+                        }
+
+                        if (sd.status === 'COMPLETE') {
+                            clearInterval(_pollInterval);
+                            ptxt.innerHTML = `Audit Complete! <a href="/download/${data.task_id}" target="_blank" class="underline font-bold text-emerald-300 ml-1">Download Excel Report</a>`;
+                            ptxt.className = 'text-xs font-mono text-emerald-400 truncate';
+
+                            if (pSpin) pSpin.classList.add('hidden');
+                            if (pCheck) pCheck.classList.remove('hidden');
+                            if (pStripe) pStripe.className = 'absolute left-0 top-0 bottom-0 w-1 bg-emerald-400 transition-colors';
+
+                            btn.disabled = false;
+                            lbl.textContent = 'Run New Audit';
+                            icon.classList.remove('hidden');
+                            spin.classList.add('hidden');
+
+                            const iframe = document.createElement('iframe');
+                            iframe.style.display = 'none';
+                            iframe.src = `/download/${data.task_id}`;
+                            document.body.appendChild(iframe);
+                            setTimeout(() => {
+                                try { document.body.removeChild(iframe); } catch (e) { }
+                            }, 4000);
+                        } else if (sd.status.startsWith('ERROR')) {
+                            clearInterval(_pollInterval);
+                            ptxt.className = 'text-xs font-mono text-red-400 truncate';
+                            btn.disabled = false;
+                            lbl.textContent = 'Retry Audit';
+                            icon.classList.remove('hidden');
+                            spin.classList.add('hidden');
+                        }
+                    } catch (pollErr) {
+                        // network blip — keep polling
+                    }
+                }, 600);
+            } catch (err) {
+                ptxt.textContent = 'Error: ' + err.message;
+                ptxt.className = 'text-xs font-mono text-red-400 truncate';
+                fullReset('Retry');
+            }
+        });
+
+        // Dashboard Data Loading & Silent 10s Sync
+        async function loadDashboard(force = false) {
+            document.getElementById('dash-loading').classList.remove('hidden');
+            document.getElementById('dash-content').classList.add('hidden');
+
+            try {
+                const r = await fetch('/api/dashboard' + (force ? '?t=' + Date.now() : ''));
+                if (!r.ok) throw new Error('Failed to fetch dashboard data');
+                _rawData = await r.json();
+
+                const allCourses = (_rawData.course_tabs && _rawData.course_tabs.length > 0)
+                    ? _rawData.course_tabs
+                    : Object.keys(_rawData.course_breakdown || {});
+                syncCourseDropdownOptions(allCourses);
+
+                applyDashboardFilters();
+                document.getElementById('dash-loading').classList.add('hidden');
+                document.getElementById('dash-content').classList.remove('hidden');
+            } catch (e) {
+                console.error("Dashboard load error:", e);
+                document.getElementById('dash-loading').classList.add('hidden');
+            }
+        }
+
+        async function loadDashboardSilently() {
+            try {
+                const r = await fetch('/api/dashboard?t=' + Date.now());
+                if (!r.ok) return;
+                _rawData = await r.json();
+
+                const allCourses = (_rawData.course_tabs && _rawData.course_tabs.length > 0)
+                    ? _rawData.course_tabs
+                    : Object.keys(_rawData.course_breakdown || {});
+                syncCourseDropdownOptions(allCourses);
+
+                applyDashboardFilters();
+            } catch (e) {
+                // Silent fail
+            }
+        }
+
+        let _masterAllowedCourses = [];
+        let _selectedCourseShells = new Set(); // empty means ALL
+
+        function syncCourseDropdownOptions(allowedCourses) {
+            _masterAllowedCourses = allowedCourses || [];
+            renderCourseCheckboxDropdown();
+        }
+
+        function updateCourseDropdownPosition() {
+            const dropdown = document.getElementById('cs-checkbox-dropdown');
+            const container = document.getElementById('cs-search-container');
+            if (!dropdown || !container || dropdown.classList.contains('hidden')) return;
+
+            const rect = container.getBoundingClientRect();
+            dropdown.style.position = 'fixed';
+            dropdown.style.top = (rect.bottom + 6) + 'px';
+            dropdown.style.left = Math.max(10, rect.right - 290) + 'px';
+            dropdown.style.width = '290px';
+            dropdown.style.zIndex = '9999999';
+        }
+
+        function openCourseDropdown() {
+            const dropdown = document.getElementById('cs-checkbox-dropdown');
+            const arrow = document.getElementById('cs-arrow-icon');
+            if (!dropdown) return;
+
+            updateCourseDropdownPosition();
+            dropdown.classList.remove('hidden');
+            if (arrow) arrow.style.transform = 'rotate(180deg)';
+            renderCourseCheckboxDropdown();
+        }
+
+        function closeCourseDropdown() {
+            const dropdown = document.getElementById('cs-checkbox-dropdown');
+            const arrow = document.getElementById('cs-arrow-icon');
+            if (dropdown) dropdown.classList.add('hidden');
+            if (arrow) arrow.style.transform = 'rotate(0deg)';
+        }
+
+        function toggleCourseDropdown(e) {
+            if (e) e.stopPropagation();
+            const dropdown = document.getElementById('cs-checkbox-dropdown');
+            if (dropdown && dropdown.classList.contains('hidden')) {
+                openCourseDropdown();
+            } else {
+                closeCourseDropdown();
+            }
+        }
+
+        window.addEventListener('scroll', updateCourseDropdownPosition, { passive: true });
+        window.addEventListener('resize', updateCourseDropdownPosition, { passive: true });
+
+        function onCourseSearchInput(query) {
+            openCourseDropdown();
+            renderCourseCheckboxDropdown(query);
+        }
+
+        let _allCoursesMode = true;
+
+        function csInitFilter() {
+            const input = document.getElementById('course-search-input-top');
+            if (!input) return;
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const value = input.value.trim();
+                    if (value) {
+                        const parts = value.split(',').map(s => s.trim()).filter(s => s);
+                        let addedAny = false;
+                        
+                        if (_allCoursesMode && parts.length > 0) {
+                            _allCoursesMode = false;
+                            _selectedCourseShells.clear();
+                        }
+
+                        parts.forEach(part => {
+                            const match = _masterAllowedCourses.find(c => c.toLowerCase() === part.toLowerCase()) ||
+                                          _masterAllowedCourses.find(c => c.toLowerCase().includes(part.toLowerCase()));
+                            const targetCourse = match || part;
+                            if (!_selectedCourseShells.has(targetCourse)) {
+                                _selectedCourseShells.add(targetCourse);
+                                addedAny = true;
+                            }
+                        });
+
+                        if (addedAny) {
+                            if (_selectedCourseShells.size === _masterAllowedCourses.length) {
+                                _allCoursesMode = true;
+                                _selectedCourseShells.clear();
+                            }
+                            input.value = '';
+                            renderCourseCheckboxDropdown();
+                            applyDashboardFilters();
+                        }
+                    }
+                    closeCourseDropdown();
+                }
+            });
+        }
+
+        function renderCourseCheckboxDropdown(filterQuery = '') {
+            const dropdown = document.getElementById('cs-checkbox-dropdown');
+            const input = document.getElementById('course-search-input-top');
+            if (!dropdown) return;
+
+            const q = (filterQuery || input?.value || '').trim().toLowerCase();
+            const filtered = _masterAllowedCourses.filter(c => !q || c.toLowerCase().includes(q));
+
+            let html = '';
+
+            // Master "All Courses" option
+            const isMasterChecked = _allCoursesMode;
+            html += `
+                <label class="flex items-center justify-between px-3 py-2 hover:bg-white/10 rounded-lg cursor-pointer transition-all text-xs font-mono border-b border-white/10 mb-1">
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" ${isMasterChecked ? 'checked' : ''} onchange="toggleSelectAllCourses(this.checked)"
+                            class="rounded border-white/30 bg-black text-blue-600 focus:ring-0 cursor-pointer w-3.5 h-3.5 accent-blue-600" />
+                        <span class="font-bold ${isMasterChecked ? 'text-blue-400' : 'text-white/80'}">All Courses (${_masterAllowedCourses.length})</span>
+                    </div>
+                    <span class="text-[10px] text-white/40">Select All</span>
+                </label>
+            `;
+
+            if (filtered.length === 0) {
+                html += `<div class="text-[11px] text-white/40 px-3 py-2 font-mono">No course shell found</div>`;
+            } else {
+                filtered.forEach(course => {
+                    const isChecked = _allCoursesMode || _selectedCourseShells.has(course);
+                    html += `
+                        <label class="flex items-center gap-2.5 px-3 py-1.5 hover:bg-white/10 rounded-lg cursor-pointer transition-all text-xs font-mono text-white/90">
+                            <input type="checkbox" value="${course.replace(/"/g, '&quot;')}" ${isChecked ? 'checked' : ''}
+                                onchange="toggleSingleCourseSelection('${course.replace(/'/g, "\\'")}', this.checked)"
+                                class="rounded border-white/30 bg-black text-blue-600 focus:ring-0 cursor-pointer w-3.5 h-3.5 accent-blue-600" />
+                            <span class="${isChecked ? 'text-blue-300 font-bold' : 'text-white/80'} truncate">${course}</span>
+                        </label>
+                    `;
+                });
+            }
+
+            dropdown.innerHTML = html;
+            updateCourseInputPlaceholder();
+        }
+
+        function toggleSelectAllCourses(checked) {
+            _allCoursesMode = checked;
+            _selectedCourseShells.clear();
+            renderCourseCheckboxDropdown();
+            applyDashboardFilters();
+        }
+
+        function toggleSingleCourseSelection(course, checked) {
+            if (_allCoursesMode) {
+                _allCoursesMode = false;
+                _masterAllowedCourses.forEach(c => {
+                    if (c !== course) _selectedCourseShells.add(c);
+                });
+            } else {
+                if (checked) {
+                    _selectedCourseShells.add(course);
+                } else {
+                    _selectedCourseShells.delete(course);
+                }
+            }
+
+            if (_selectedCourseShells.size === _masterAllowedCourses.length || (_selectedCourseShells.size === 0 && !checked)) {
+                _allCoursesMode = true;
+                _selectedCourseShells.clear();
+            }
+
+            renderCourseCheckboxDropdown();
+            applyDashboardFilters();
+        }
+
+        function updateCourseInputPlaceholder() {
+            const input = document.getElementById('course-search-input-top');
+            if (!input) return;
+            if (document.activeElement === input && input.value) return;
+
+            if (_allCoursesMode) {
+                input.placeholder = "All Courses Shells";
+            } else {
+                const count = _selectedCourseShells.size;
+                if (count === 0) {
+                    input.placeholder = "Search course shell...";
+                } else if (count === 1) {
+                    input.placeholder = Array.from(_selectedCourseShells)[0];
+                } else {
+                    input.placeholder = `${count} Course Shells Selected`;
+                }
+            }
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            const csContainer = document.getElementById('cs-search-container');
+            if (csContainer && !csContainer.contains(e.target)) {
+                closeCourseDropdown();
+            }
+        });
+
+        function getSelectedCourseList() {
+            if (_allCoursesMode) {
+                return null;
+            }
+            return Array.from(_selectedCourseShells);
+        }
+
+        function applyDashboardFilters() {
+            if (!_rawData) return;
+
+            saveFilterPreferences();
+
+            let dataToRender = _rawData;
+
+            const isDateFilterActive = document.getElementById('date-filter-toggle')?.checked;
+            const startDateVal = document.getElementById('dash-start-date')?.value;
+            const endDateVal = document.getElementById('dash-end-date')?.value;
+
+            if (isDateFilterActive && (startDateVal || endDateVal)) {
+                dataToRender = filterDataByDateRange(dataToRender, startDateVal, endDateVal);
+            } else {
+                const allCourses = (_rawData.course_tabs && _rawData.course_tabs.length > 0)
+                    ? _rawData.course_tabs
+                    : Object.keys(_rawData.course_breakdown || {});
+                syncCourseDropdownOptions(allCourses);
+            }
+
+            const selectedList = getSelectedCourseList();
+            const badge = document.getElementById('course-range-badge');
+
+            if (!selectedList || selectedList.length === 0) {
+                if (badge) {
+                    const numCourses = (dataToRender.kpis || {}).total_courses || 0;
+                    badge.textContent = `All Courses (${numCourses} Total) • 6-Week Duration`;
+                    badge.className = 'badge bg-blue-500/15 text-blue-300 border border-blue-500/30 text-[10px]';
+                }
+            } else if (selectedList.length === 1) {
+                dataToRender = filterDataByCourse(dataToRender, selectedList[0]);
+                if (badge) {
+                    badge.textContent = `${selectedList[0]} (1 Course) • 6-Week Duration`;
+                    badge.className = 'badge bg-blue-500/15 text-blue-300 border border-blue-500/30 text-[10px]';
+                }
+            } else {
+                dataToRender = filterDataByMultipleCourses(dataToRender, selectedList);
+                if (badge) {
+                    badge.textContent = `${selectedList.length} Courses Selected • 6-Week Duration`;
+                    badge.className = 'badge bg-blue-500/15 text-blue-300 border border-blue-500/30 text-[10px]';
+                }
+            }
+
+            renderDashboard(dataToRender);
+        }
+
+        function filterDataByMultipleCourses(data, courseIds) {
+            const matchedCourseMap = {};
+            const selectedSet = new Set(courseIds);
+
+            Object.entries(data.course_breakdown || {}).forEach(([cid, cm]) => {
+                if (selectedSet.has(cid) || selectedSet.has(cm.name)) {
+                    matchedCourseMap[cid] = cm;
+                }
+            });
+
+            const matchedCourseIdSet = new Set(Object.keys(matchedCourseMap));
+            const matchedCourseNames = new Set(Object.values(matchedCourseMap).map(c => c.name || ''));
+
+            const filteredTop = (data.top_learners || []).filter(l =>
+                matchedCourseIdSet.has(l.course_id) || matchedCourseNames.has(l.course_name) || selectedSet.has(l.course_id) || selectedSet.has(l.course_name)
+            );
+            const filteredWatchlist = (data.watchlist || []).filter(l =>
+                matchedCourseIdSet.has(l.course_id) || matchedCourseNames.has(l.course_name) || selectedSet.has(l.course_id) || selectedSet.has(l.course_name)
+            );
+
+            let totalLearners = 0, activeCount = 0, missedCount = 0, inactiveCount = 0;
+            Object.values(matchedCourseMap).forEach(cm => {
+                totalLearners += (cm.total || 0);
+                activeCount += (cm.active || 0);
+                missedCount += (cm.missed_submissions || 0);
+                inactiveCount += (cm.inactive || 0);
+            });
+
+            let inactiveNotLoggedIn = 0, pureInactive = 0;
+            filteredWatchlist.forEach(l => {
+                if (l.category === 'INACTIVE - NOT LOGGED IN') inactiveNotLoggedIn++;
+                else if (l.category === 'INACTIVE') pureInactive++;
+            });
+            if ((inactiveNotLoggedIn + pureInactive) < inactiveCount) {
+                pureInactive = Math.max(0, inactiveCount - inactiveNotLoggedIn);
+            }
+
+            let avgTimeHours = 0;
+            if (filteredTop.length > 0) {
+                const totalSec = filteredTop.reduce((acc, l) => acc + (l.time_seconds || 0), 0);
+                avgTimeHours = Math.round((totalSec / filteredTop.length / 3600) * 100) / 100;
+            }
+
+            const activeCohorts = new Set([
+                ...filteredWatchlist.map(l => l.cohort),
+                ...filteredTop.map(l => l.cohort)
+            ].filter(c => c && c !== 'N/A'));
+            const filteredCohorts = {};
+            Object.entries(data.cohort_breakdown || {}).forEach(([cname, cinfo]) => {
+                if (activeCohorts.has(cname)) filteredCohorts[cname] = cinfo;
+            });
+
+            const weeklyAgg = {};
+            Object.values(matchedCourseMap).forEach(cm => {
+                (cm.weekly || []).forEach(w => {
+                    if (!weeklyAgg[w.week]) weeklyAgg[w.week] = { met: 0, not_met: 0, total: 0 };
+                    weeklyAgg[w.week].met += (w.met || 0);
+                    weeklyAgg[w.week].not_met += (w.not_met || 0);
+                    weeklyAgg[w.week].total += (w.total || 0);
+                });
+            });
+            const filteredWeekly = Object.keys(weeklyAgg).sort((a,b) => a - b).map(wk => {
+                const wa = weeklyAgg[wk];
+                return {
+                    week: parseInt(wk),
+                    met: wa.met,
+                    not_met: wa.not_met,
+                    total: wa.total,
+                    met_pct: wa.total > 0 ? Math.round((wa.met / wa.total) * 1000) / 10 : 0
+                };
+            });
+
+            return {
+                ...data,
+                kpis: {
+                    total_courses: matchedCourseIdSet.size || courseIds.length,
+                    total_learners: totalLearners,
+                    active_learners: activeCount,
+                    missed_submission_learners: missedCount,
+                    inactive_learners: inactiveCount,
+                    avg_time_hours: avgTimeHours
+                },
+                cat_counts: {
+                    'ACTIVE': activeCount,
+                    'MISSED SUBMISSION': missedCount,
+                    'INACTIVE': pureInactive,
+                    'INACTIVE - NOT LOGGED IN': inactiveNotLoggedIn
+                },
+                top_learners: filteredTop,
+                watchlist: filteredWatchlist,
+                course_breakdown: matchedCourseMap,
+                cohort_breakdown: filteredCohorts,
+                weekly_summary: filteredWeekly
+            };
+        }
+
+        function filterDataByDateRange(data, startStr, endStr) {
+            const startDate = startStr ? new Date(startStr + 'T00:00:00') : null;
+            const endDate = endStr ? new Date(endStr + 'T23:59:59') : null;
+
+            // 1. Evaluate 6-Week Duration windows for ALL course shells
+            const matchedCourseMap = {};
+            const courseEntries = Object.entries(data.course_breakdown || {});
+
+            courseEntries.forEach(([cid, cm]) => {
+                const learnerDates = [];
+                (data.watchlist || []).forEach(l => {
+                    if ((l.course_id === cid || l.course_name === cm.name) && l.last_act && l.last_act !== 'N/A') {
+                        const d = new Date(l.last_act);
+                        if (!isNaN(d.getTime())) learnerDates.push(d);
+                    }
+                });
+                (data.top_learners || []).forEach(l => {
+                    if ((l.course_id === cid || l.course_name === cm.name) && l.last_act && l.last_act !== 'N/A') {
+                        const d = new Date(l.last_act);
+                        if (!isNaN(d.getTime())) learnerDates.push(d);
+                    }
+                });
+
+                let courseStart, courseEnd;
+                if (learnerDates.length > 0) {
+                    learnerDates.sort((a, b) => a - b);
+                    courseStart = learnerDates[0];
+                    courseEnd = new Date(courseStart.getTime() + (42 * 24 * 60 * 60 * 1000));
+                } else {
+                    courseStart = new Date('2026-07-01');
+                    courseEnd = new Date('2026-08-12');
+                }
+
+                let isCourseMatched = true;
+                if (startDate && courseEnd < startDate) isCourseMatched = false;
+                if (endDate && courseStart > endDate) isCourseMatched = false;
+
+                if (isCourseMatched) {
+                    matchedCourseMap[cid] = cm;
+                }
+            });
+
+            const matchedCourseIds = new Set(Object.keys(matchedCourseMap));
+            const matchedCourseNames = new Set(Object.values(matchedCourseMap).map(c => c.name || c.course_id));
+
+            // Sync dropdown options to ONLY matched course shells
+            syncCourseDropdownOptions(Array.from(matchedCourseNames));
+
+            // If 0 courses matched, display 0 stats across all components
+            if (matchedCourseIds.size === 0) {
+                const badge = document.getElementById('course-range-badge');
+                if (badge) {
+                    const rangeText = `${startStr || 'Start'} to ${endStr || 'End'}`;
+                    badge.textContent = `FILTERED RANGE: ${rangeText} • 0 ACTIVE COURSES`;
+                    badge.className = 'badge bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold';
+                }
+
+                return {
+                    ...data,
+                    kpis: {
+                        total_courses: 0,
+                        total_learners: 0,
+                        active_learners: 0,
+                        missed_subs: 0,
+                        inactive: 0,
+                        avg_time: '0.00 hrs',
+                        avg_time_hours: 0
+                    },
+                    cat_counts: {
+                        'ACTIVE': 0,
+                        'MISSED SUBMISSION': 0,
+                        'INACTIVE': 0,
+                        'INACTIVE - NOT LOGGED IN': 0
+                    },
+                    top_learners: [],
+                    watchlist: [],
+                    course_breakdown: {},
+                    cohort_breakdown: {},
+                    weekly_summary: []
+                };
+            }
+
+            // 2. Filter learners to ONLY those belonging to the MATCHED course shells
+            const filteredTop = (data.top_learners || []).filter(l => {
+                return matchedCourseIds.has(l.course_id) || matchedCourseNames.has(l.course_name);
+            });
+
+            const filteredWatchlist = (data.watchlist || []).filter(l => {
+                return matchedCourseIds.has(l.course_id) || matchedCourseNames.has(l.course_name);
+            });
+
+            // 3. Aggregate OVERALL sheet tab metrics across the matched course shells
+            let totalLearners = 0;
+            let activeCount = 0;
+            let missedCount = 0;
+            let inactiveCount = 0;
+
+            Object.values(matchedCourseMap).forEach(cm => {
+                totalLearners += (cm.total || 0);
+                activeCount += (cm.active || 0);
+                missedCount += (cm.missed_submissions || 0);
+                inactiveCount += (cm.inactive || 0);
+            });
+
+            let inactiveNotLoggedIn = 0;
+            let pureInactive = 0;
+            filteredWatchlist.forEach(l => {
+                if (l.category === 'INACTIVE - NOT LOGGED IN') inactiveNotLoggedIn++;
+                else if (l.category === 'INACTIVE') pureInactive++;
+            });
+
+            if ((inactiveNotLoggedIn + pureInactive) < inactiveCount) {
+                pureInactive = Math.max(0, inactiveCount - inactiveNotLoggedIn);
+            }
+
+            let avgTimeHours = 0;
+            if (filteredTop.length > 0) {
+                const totalSec = filteredTop.reduce((acc, l) => acc + (l.time_seconds || 0), 0);
+                avgTimeHours = Math.round((totalSec / filteredTop.length / 3600) * 100) / 100;
+            }
+
+            const formattedAvgTime = `${avgTimeHours.toFixed(2)} hrs`;
+
+            // 4. Filter cohort breakdown to ONLY include cohorts from matched course shells
+            const matchedCohorts = new Set([
+                ...filteredWatchlist.map(l => l.cohort),
+                ...filteredTop.map(l => l.cohort)
+            ].filter(c => c && c !== 'N/A'));
+
+            const filteredCohorts = {};
+            Object.entries(data.cohort_breakdown || {}).forEach(([cname, cinfo]) => {
+                if (matchedCohorts.has(cname)) {
+                    filteredCohorts[cname] = cinfo;
+                }
+            });
+
+            // 5. Aggregate weekly_summary from matched course shells
+            const weeklyAgg = {};
+            Object.values(matchedCourseMap).forEach(cm => {
+                (cm.weekly || []).forEach(w => {
+                    if (!weeklyAgg[w.week]) weeklyAgg[w.week] = { met: 0, not_met: 0, total: 0 };
+                    weeklyAgg[w.week].met += (w.met || 0);
+                    weeklyAgg[w.week].not_met += (w.not_met || 0);
+                    weeklyAgg[w.week].total += (w.total || 0);
+                });
+            });
+            const filteredWeekly = Object.keys(weeklyAgg).sort((a, b) => a - b).map(wk => {
+                const wa = weeklyAgg[wk];
+                return {
+                    week: parseInt(wk),
+                    met: wa.met,
+                    not_met: wa.not_met,
+                    total: wa.total,
+                    met_pct: wa.total > 0 ? Math.round((wa.met / wa.total) * 1000) / 10 : 0
+                };
+            });
+
+            const badge = document.getElementById('course-range-badge');
+            if (badge) {
+                const rangeText = `${startStr || 'Start'} to ${endStr || 'End'}`;
+                badge.textContent = `FILTERED RANGE: ${rangeText} • ${matchedCourseIds.size} ACTIVE COURSES`;
+                badge.className = 'badge bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold';
+            }
+
+            return {
+                ...data,
+                kpis: {
+                    total_courses: matchedCourseIds.size,
+                    total_learners: totalLearners,
+                    active_learners: activeCount,
+                    missed_subs: missedCount,
+                    inactive: inactiveCount,
+                    avg_time: formattedAvgTime,
+                    avg_time_hours: avgTimeHours
+                },
+                cat_counts: {
+                    'ACTIVE': activeCount,
+                    'MISSED SUBMISSION': missedCount,
+                    'INACTIVE': pureInactive,
+                    'INACTIVE - NOT LOGGED IN': inactiveNotLoggedIn
+                },
+                top_learners: filteredTop,
+                watchlist: filteredWatchlist,
+                course_breakdown: matchedCourseMap,
+                cohort_breakdown: filteredCohorts,
+                weekly_summary: filteredWeekly
+            };
+        }
+
+        function filterDataByCourse(data, courseId) {
+            const cb = {};
+            if (data.course_breakdown && data.course_breakdown[courseId]) {
+                cb[courseId] = data.course_breakdown[courseId];
+            }
+
+            const cm = data.course_breakdown ? data.course_breakdown[courseId] || {} : {};
+            const filteredTop = (data.top_learners || []).filter(l => l.course_id === courseId || l.course_name === courseId);
+            const filteredWatchlist = (data.watchlist || []).filter(l => l.course_id === courseId || l.course_name === courseId);
+
+            // Compute exact category counts for this course
+            let inactiveNotLoggedIn = 0;
+            let inactiveCount = 0;
+            let missedCount = 0;
+            filteredWatchlist.forEach(l => {
+                if (l.category === 'INACTIVE - NOT LOGGED IN') inactiveNotLoggedIn++;
+                else if (l.category === 'INACTIVE') inactiveCount++;
+                else if (l.category === 'MISSED SUBMISSION') missedCount++;
+            });
+
+            if (missedCount < (cm.missed_submissions || 0)) {
+                missedCount = cm.missed_submissions || 0;
+            }
+            const expectedInactive = cm.inactive || 0;
+            if ((inactiveNotLoggedIn + inactiveCount) < expectedInactive) {
+                inactiveCount = Math.max(0, expectedInactive - inactiveNotLoggedIn);
+            }
+
+            const courseCatCounts = {
+                'ACTIVE': cm.active || 0,
+                'MISSED SUBMISSION': missedCount,
+                'INACTIVE': inactiveCount,
+                'INACTIVE - NOT LOGGED IN': inactiveNotLoggedIn
+            };
+
+            // Compute average time for this course
+            let courseAvgTime = data.kpis ? data.kpis.avg_time_hours : 0;
+            if (filteredTop.length > 0) {
+                const totalSec = filteredTop.reduce((acc, l) => acc + (l.time_seconds || 0), 0);
+                courseAvgTime = Math.round((totalSec / filteredTop.length / 3600) * 100) / 100;
+            }
+
+            // Filter cohort breakdown for this course
+            const activeCohorts = new Set([
+                ...filteredWatchlist.map(l => l.cohort),
+                ...filteredTop.map(l => l.cohort)
+            ].filter(c => c && c !== 'N/A'));
+
+            const filteredCohorts = {};
+            Object.entries(data.cohort_breakdown || {}).forEach(([cname, cinfo]) => {
+                if (activeCohorts.has(cname) || activeCohorts.size === 0) {
+                    filteredCohorts[cname] = cinfo;
+                }
+            });
+
+            return {
+                ...data,
+                kpis: {
+                    total_courses: 1,
+                    total_learners: cm.total || 0,
+                    active_learners: cm.active || 0,
+                    missed_submission_learners: cm.missed_submissions || 0,
+                    inactive_learners: cm.inactive || 0,
+                    total_missing: cm.missing || 0,
+                    total_submitted: cm.submitted || 0,
+                    avg_time_hours: courseAvgTime,
+                },
+                cat_counts: courseCatCounts,
+                top_learners: filteredTop,
+                watchlist: filteredWatchlist,
+                course_breakdown: cb,
+                cohort_breakdown: filteredCohorts,
+                weekly_summary: cm.weekly || []
+            };
+        }
+
+        function renderDashboard(data) {
+            const k = data.kpis || {};
+
+            document.getElementById('kpi-courses').textContent = k.total_courses ?? '--';
+            document.getElementById('kpi-total').textContent = k.total_learners ?? '--';
+            document.getElementById('kpi-active').textContent = k.active_learners ?? '--';
+            document.getElementById('kpi-missed').textContent = k.missed_submission_learners ?? '--';
+            document.getElementById('kpi-inactive').textContent = k.inactive_learners ?? '--';
+            document.getElementById('kpi-time').textContent = k.avg_time_hours ?? '--';
+
+            renderWeeklyTracker(data);
+            renderEngagementCategories(data);
+            renderCoursePerformanceTable(data.course_breakdown || {});
+            renderLeaderboardTable(data.top_learners || []);
+            renderCohortTable(data.cohort_breakdown || {});
+        }
+
+        function renderWeeklyTracker(data) {
+            const container = document.getElementById('weekly-tracker');
+            if (!container) return;
+            container.innerHTML = '';
+
+            const weekly = data.weekly_summary || [];
+            if (weekly.length === 0) {
+                container.innerHTML = '<div class="text-[10px] text-white/30 text-center py-4 font-mono">No weekly metrics available for active filters</div>';
+                return;
+            }
+
+            weekly.forEach(w => {
+                const metPct = typeof w.met_pct === 'number' ? w.met_pct : 0;
+                let barColor = '#10b981';
+                if (metPct < 40) barColor = '#ef4444';
+                else if (metPct < 70) barColor = '#f59e0b';
+
+                container.innerHTML += `
+                <div class="flex items-center gap-3 py-1.5 border-b border-white/[0.04] last:border-0">
+                    <span class="text-[11px] font-bold font-mono text-white/70 w-14 shrink-0">Week ${w.week}</span>
+                    <div class="flex-grow h-2 rounded-full bg-white/[0.06] overflow-hidden p-[1px]">
+                        <div class="h-full rounded-full transition-all duration-500" style="width:${metPct}%;background:${barColor}"></div>
+                    </div>
+                    <span class="text-[11px] font-bold font-mono w-12 text-right shrink-0" style="color:${barColor}">${metPct}%</span>
+                    <div class="text-[10px] font-mono shrink-0 text-right min-w-[135px]">
+                        <span class="text-emerald-400 font-bold">${w.met} MET</span>
+                        <span class="text-white/20 mx-1">•</span>
+                        <span class="text-rose-400 font-bold">${w.not_met} NOT MET</span>
+                    </div>
+                </div>`;
+            });
+        }
+
+        function renderEngagementCategories(data) {
+            const catDiv = document.getElementById('cat-breakdown');
+            if (!catDiv) return;
+            catDiv.innerHTML = '';
+
+            const total = (data.kpis || {}).total_learners || 1;
+            const cats = data.cat_counts || {};
+
+            const CAT_META = {
+                'ACTIVE': { label: 'Active', cls: 'badge-active', color: '#10b981' },
+                'MISSED SUBMISSION': { label: 'Missed Submission', cls: 'badge-missed', color: '#f59e0b' },
+                'INACTIVE': { label: 'Inactive', cls: 'badge-inactive', color: '#ef4444' },
+                'INACTIVE - NOT LOGGED IN': { label: 'Inactive - Not Logged In', cls: 'badge-notactive', color: '#fc8181' },
+            };
+
+            const targetCategories = ['ACTIVE', 'MISSED SUBMISSION', 'INACTIVE', 'INACTIVE - NOT LOGGED IN'];
+            targetCategories.forEach(cat => {
+                const cnt = cats[cat] || 0;
+                const m = CAT_META[cat];
+                const pct = Math.round((cnt / total) * 100);
+                catDiv.innerHTML += `
+                <div class="glass-sm p-3.5 rounded-xl border border-white/5">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="badge ${m.cls} text-[9px]">${m.label}</span>
+                        <span class="text-white/80 text-xs font-bold font-mono">${cnt} <span class="text-white/35 font-normal">(${pct}%)</span></span>
+                    </div>
+                    <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${m.color}"></div></div>
+                </div>`;
+            });
+        }
+
+        function renderCoursePerformanceTable(courseMap) {
+            const tbody = document.getElementById('course-performance-tbody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            const searchVal = (document.getElementById('course-search-input')?.value || '').toLowerCase();
+
+            Object.entries(courseMap).forEach(([cid, cm]) => {
+                const cname = cm.name || cid;
+                if (searchVal && !cid.toLowerCase().includes(searchVal) && !cname.toLowerCase().includes(searchVal)) {
+                    return;
+                }
+
+                const healthPct = cm.health_pct ?? 0;
+                let healthColor = '#10b981';
+                if (healthPct < 40) healthColor = '#ef4444';
+                else if (healthPct <= 75) healthColor = '#f59e0b';
+
+                tbody.innerHTML += `<tr class="table-row">
+                    <td class="py-2.5 px-3 text-white/90 font-mono text-[11px]">
+                        <div class="font-bold">${cname}</div>
+                        <div class="text-[9px] text-white/35">${cid}</div>
+                    </td>
+                    <td class="py-2.5 px-3 text-center text-white/80 font-mono">${cm.total}</td>
+                    <td class="py-2.5 px-3 text-center text-purple-300 font-mono font-semibold">${cm.total_asgn || 0}</td>
+                    <td class="py-2.5 px-3 text-center text-blue-400 font-mono font-bold">${cm.submitted}</td>
+                    <td class="py-2.5 px-3 text-center text-emerald-400 font-mono font-bold">${cm.active}</td>
+                    <td class="py-2.5 px-3 text-center font-mono ${cm.inactive > 0 ? 'text-red-400 font-bold' : 'text-white/40'}">${cm.inactive}</td>
+                    <td class="py-2.5 px-3 text-center text-amber-400 font-mono">${cm.missed_submissions || 0}</td>
+                    <td class="py-2.5 px-3 text-center">
+                        <div class="flex items-center gap-2">
+                            <div class="flex-grow progress-bar"><div class="progress-fill" style="width:${healthPct}%;background:${healthColor}"></div></div>
+                            <span class="text-[10px] font-mono text-white/70 w-9 text-right">${healthPct}%</span>
+                        </div>
+                    </td>
+                </tr>`;
+            });
+        }
+
+        function filterCourseTable() {
+            if (_rawData) renderCoursePerformanceTable(_rawData.course_breakdown || {});
+        }
+
+        let _currentLeaderboardList = [];
+
+        function renderLeaderboardTable(topList) {
+            _currentLeaderboardList = topList;
+            const tbody = document.getElementById('leaderboard-tbody');
+            const countText = document.getElementById('leaderboard-count-text');
+            const paginationDiv = document.getElementById('leaderboard-pagination');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            const searchVal = (document.getElementById('leaderboard-search-input')?.value || '').toLowerCase();
+            const filtered = _currentLeaderboardList.filter(l => {
+                return !searchVal || l.learner_name.toLowerCase().includes(searchVal) || (l.email || '').toLowerCase().includes(searchVal);
+            });
+
+            const totalPages = Math.ceil(filtered.length / leaderboardPageSize) || 1;
+            if (leaderboardCurrentPage > totalPages) leaderboardCurrentPage = totalPages;
+
+            const startIdx = (leaderboardCurrentPage - 1) * leaderboardPageSize;
+            const endIdx = Math.min(startIdx + leaderboardPageSize, filtered.length);
+
+            if (countText) countText.textContent = `Showing ${filtered.length > 0 ? startIdx + 1 : 0}-${endIdx} of ${filtered.length} learners (>10m spent)`;
+
+            // Render Numbered Page & Arrow Buttons
+            if (paginationDiv) {
+                let phtml = '';
+                if (totalPages > 1) {
+                    const prevDisabled = leaderboardCurrentPage === 1 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white/20 cursor-pointer';
+                    phtml += `<button onclick="if(${leaderboardCurrentPage} > 1) setLeaderboardPage(${leaderboardCurrentPage - 1})" class="px-2.5 py-1 bg-white/10 text-white text-[11px] rounded-lg transition-all ${prevDisabled}">‹ Prev</button>`;
+
+                    for (let p = 1; p <= totalPages; p++) {
+                        const activeCls = p === leaderboardCurrentPage ? 'bg-blue-600 text-white font-bold' : 'bg-white/10 hover:bg-white/20 text-white/60';
+                        phtml += `<button onclick="setLeaderboardPage(${p})" class="px-2.5 py-1 text-[11px] rounded-lg transition-all ${activeCls}">${p}</button>`;
+                    }
+
+                    const nextDisabled = leaderboardCurrentPage === totalPages ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white/20 cursor-pointer';
+                    phtml += `<button onclick="if(${leaderboardCurrentPage} < ${totalPages}) setLeaderboardPage(${leaderboardCurrentPage + 1})" class="px-2.5 py-1 bg-white/10 text-white text-[11px] rounded-lg transition-all ${nextDisabled}">Next ›</button>`;
+                }
+                paginationDiv.innerHTML = phtml;
+            }
+
+            const paged = filtered.slice(startIdx, endIdx);
+            paged.forEach((l, i) => {
+                const key = (l.email || l.learner_name).toLowerCase();
+                tbody.innerHTML += `<tr class="table-row cursor-pointer" onclick="openLearnerModal('${key}')">
+                    <td class="py-2.5 px-3 text-center text-white/30 font-mono">${startIdx + i + 1}</td>
+                    <td class="py-2.5 px-3">
+                        <div class="text-white/90 font-medium hover:text-blue-400 transition-colors">${l.learner_name}</div>
+                    </td>
+                    <td class="py-2.5 px-3 text-white/50 text-[10px] font-mono">${l.email || '-'}</td>
+                    <td class="py-2.5 px-3 text-white/70 font-mono text-[10px] truncate max-w-[140px]">${l.course_name}</td>
+                    <td class="py-2.5 px-3 text-center font-mono text-white/90 font-bold">${l.time_hms || '--'}</td>
+                    <td class="py-2.5 px-3 text-center text-blue-400 font-mono">${l.submitted} / ${l.total_asgn}</td>
+                </tr>`;
+            });
+        }
+
+        function setLeaderboardPage(p) {
+            leaderboardCurrentPage = p;
+            if (_rawData) renderLeaderboardTable(_rawData.top_learners || []);
+        }
+
+        function filterLeaderboardTable() {
+            leaderboardCurrentPage = 1;
+            if (_rawData) renderLeaderboardTable(_rawData.top_learners || []);
+        }
+
+        function renderCohortTable(cohortMap) {
+            const tbody = document.getElementById('cohort-tbody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            Object.entries(cohortMap).forEach(([cname, cinfo]) => {
+                tbody.innerHTML += `<tr class="table-row">
+                    <td class="py-2.5 px-3 text-white/90 font-medium">${cinfo.name}</td>
+                    <td class="py-2.5 px-3 text-center text-white/80 font-mono">${cinfo.total}</td>
+                    <td class="py-2.5 px-3 text-center text-emerald-400 font-mono font-bold">${cinfo.active}</td>
+                    <td class="py-2.5 px-3 text-center text-red-400 font-mono font-bold">${cinfo.inactive}</td>
+                    <td class="py-2.5 px-3 text-center font-mono text-white/70">${cinfo.avg_time_hours} hrs</td>
+                    <td class="py-2.5 px-3 text-center text-amber-400 font-mono">${cinfo.missed_submissions || 0}</td>
+                </tr>`;
+            });
+        }
+
+        // Learner Top-Nav Auto-Search & Modal Profile
+        function onLearnerNavSearchInput(val) {
+            const dropdown = document.getElementById('learner-search-dropdown');
+            if (!dropdown) return;
+
+            const q = val.trim().toLowerCase();
+            if (!q || !_rawData || !_rawData.learner_profiles) {
+                dropdown.classList.add('hidden');
+                dropdown.innerHTML = '';
+                return;
+            }
+
+            const matches = Object.entries(_rawData.learner_profiles).filter(([key, prof]) => {
+                return prof.learner_name.toLowerCase().includes(q) || (prof.email || '').toLowerCase().includes(q);
+            });
+
+            if (!matches.length) {
+                dropdown.innerHTML = '<div class="text-[11px] text-white/40 px-3 py-2">No learner matched</div>';
+                dropdown.classList.remove('hidden');
+                return;
+            }
+
+            dropdown.innerHTML = matches.slice(0, 8).map(([key, prof]) => `
+                <div onclick="openLearnerModal('${key}'); document.getElementById('learner-search-dropdown').classList.add('hidden');"
+                    class="px-3 py-2 hover:bg-white/10 rounded-lg cursor-pointer transition-all flex items-center justify-between text-xs">
+                    <div>
+                        <div class="font-bold text-white">${prof.learner_name}</div>
+                        <div class="text-[10px] text-white/40 font-mono">${prof.email || ''}</div>
+                    </div>
+                    <span class="badge ${prof.overall === 'Active' ? 'badge-active' : 'badge-inactive'} text-[9px]">${prof.overall || 'Red Alert'}</span>
+                </div>
+            `).join('');
+            dropdown.classList.remove('hidden');
+        }
+
+        function openLearnerModal(key) {
+            if (!_rawData || !_rawData.learner_profiles) return;
+            const prof = _rawData.learner_profiles[key];
+            if (!prof) return;
+
+            document.getElementById('modal-learner-name').textContent = prof.learner_name;
+            document.getElementById('modal-learner-email').textContent = prof.email || 'N/A';
+
+            const statusEl = document.getElementById('modal-learner-status');
+            statusEl.textContent = prof.overall === 'Active' ? 'Active' : 'Red Alert';
+            statusEl.className = prof.overall === 'Active' ? 'badge badge-active text-[10px]' : 'badge badge-inactive text-[10px]';
+
+            document.getElementById('modal-learner-subs').textContent = `${prof.submitted} / ${prof.total_asgn}`;
+            document.getElementById('modal-learner-total-time').textContent = prof.total_time_hms || '00:00:00';
+            document.getElementById('modal-learner-avg-time').textContent = prof.avg_time_hms || '00:00:00';
+
+            const coursesDiv = document.getElementById('modal-learner-courses');
+            coursesDiv.innerHTML = (prof.courses || []).map(c => `
+                <div class="bg-white/5 px-3 py-1.5 rounded-lg text-xs font-mono text-white/80 border border-white/10">
+                    ${c}
+                </div>
+            `).join('');
+
+            // Populate Pending Submissions List
+            const pendingList = prof.missed_assignments || [];
+            const pendingDiv = document.getElementById('modal-learner-pending-list');
+            if (pendingDiv) {
+                if (pendingList.length === 0) {
+                    pendingDiv.innerHTML = `<div class="text-xs text-emerald-400 font-mono py-1">All expected submissions completed (${prof.submitted}/${prof.total_asgn})</div>`;
+                } else {
+                    pendingDiv.innerHTML = pendingList.map((mName, idx) => `
+                        <div class="flex items-center gap-2.5 text-xs font-mono text-white/80 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
+                            <span class="text-white/40 font-bold text-[10px] flex-shrink-0">${idx + 1}.</span>
+                            <span class="text-white/90 truncate">${mName}</span>
+                        </div>
+                    `).join('');
+                }
+            }
+
+            document.getElementById('learner-modal').classList.remove('hidden');
+        }
+
+        function closeLearnerModal() {
+            document.getElementById('learner-modal').classList.add('hidden');
+        }
+    </script>
 </body>
+
 </html>

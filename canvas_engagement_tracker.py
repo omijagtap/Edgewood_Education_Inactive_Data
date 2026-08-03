@@ -46,6 +46,37 @@ from datetime import timezone, timedelta
 import urllib.parse
 import traceback
 import concurrent.futures
+import re
+
+# ==============================================================================
+# COURSE SHELL PARSING UTILITIES
+# ==============================================================================
+def extract_course_name(course_shell: str) -> str:
+    """
+    Extract clean course name from a course shell string.
+    e.g. 'BUS-962-U789--Summer-2026'  ->  'BUS-962'
+         'EDU-900-UAD4-Spring-2020'   ->  'EDU-900'
+    """
+    parts = [p.strip() for p in re.split(r'-+', course_shell) if p.strip()]
+    if len(parts) >= 2:
+        return f"{parts[0]}-{parts[1]}"
+    return parts[0] if parts else course_shell
+
+
+def extract_cohort(course_shell: str) -> str:
+    """
+    Extract cohort ID from a course shell string.
+    e.g. 'BUS-962-U789--Summer-2026'  ->  'U789'
+         'EDU-900-UAD4-Spring-2020'   ->  'UAD4'
+         'BUS-607-UC10-Fall-2025'     ->  'UC10'
+    Always returns a meaningful value - never 'Cohort 1'.
+    """
+    parts = [p.strip() for p in re.split(r'-+', course_shell) if p.strip()]
+    if len(parts) >= 3:
+        return parts[2]          # 3rd token = cohort ID
+    elif len(parts) == 2:
+        return parts[1]          # 2-part shell: use 2nd token
+    return parts[0] if parts else course_shell
 
 def install_and_import(package):
     try:
@@ -80,6 +111,9 @@ class CanvasAPIClient:
         self.headers = {"Authorization": f"Bearer {token}"}
         self.session = requests.Session()
         self.session.headers.update(self.headers)
+        adapter = requests.adapters.HTTPAdapter(pool_connections=50, pool_maxsize=50)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
 
     def request(self, method, endpoint, params=None, data=None):
         """Sends an HTTP request with automatic rate limiting back-off and error handling."""
@@ -309,10 +343,23 @@ def extract_course_details(client, course, duration_weeks):
     if not end_date:
         end_date = start_date + timedelta(weeks=duration_weeks)
 
+    raw_cname = (course.get("name") or "").strip() if course else ""
+    c_code = (course.get("course_code") or course.get("sis_course_id") or str(course_id)).strip()
+
+    # Always derive course_name from the course shell (c_code)
+    # e.g. EDU-900-UAD4-Spring-2020 -> course_name='EDU-900'
+    derived_course_name = extract_course_name(c_code)
+
+    # Use Canvas course title only if it's a genuine human-readable name (not just the shell)
+    if raw_cname and not raw_cname.isdigit() and raw_cname.upper() != c_code.upper() and raw_cname.upper() != derived_course_name.upper():
+        final_course_name = raw_cname
+    else:
+        final_course_name = derived_course_name
+
     return {
         "lms_code": "Canvas LMS",
-        "course_code": course.get("course_code", "-"),
-        "course_name": course.get("name", "-"),
+        "course_code": c_code,
+        "course_name": final_course_name,
         "course_start_date": start_date,
         "course_end_date": end_date,
         "total_modules": len(active_modules),
@@ -328,9 +375,19 @@ def fetch_sections_mapping(client, course_id):
 
 def fetch_course_data(client, course_id, course_code, sections_map, start_date, duration_weeks):
     """Fetches all learners, assignments, submissions, and detailed student activity concurrently."""
-    print(f"[*] [{course_id}] Fetching student list...")
-    enrollments = client.get_paginated(f"courses/{course_id}/enrollments", {"type[]": "StudentEnrollment"})
-    
+    print(f"[*] [{course_id}] Fetching course enrollments, assignments, and submissions in parallel...")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as init_exec:
+        fut_enrollments = init_exec.submit(client.get_paginated, f"courses/{course_id}/enrollments", {"type[]": "StudentEnrollment"})
+        fut_assignments = init_exec.submit(client.get_paginated, f"courses/{course_id}/assignments")
+        fut_submissions = init_exec.submit(client.get_paginated, f"courses/{course_id}/students/submissions", {"student_ids[]": "all", "include[]": "assignment"})
+
+        enrollments = fut_enrollments.result()
+        assignments = fut_assignments.result()
+        submissions_list = fut_submissions.result()
+
+    published_assignments = [a for a in assignments if a.get("published") is not False and a.get("omit_from_final_grade") is not True and a.get("grading_type") != "not_graded"]
+    print(f"[+] [{course_id}] Found {len(published_assignments)} active assignments.")
+
     # Fallback to resolve student IDs if they are missing (N/A) from the primary token's response
     has_missing_sis = any(not (env.get("sis_user_id") or (env.get("user") or {}).get("sis_user_id")) for env in enrollments)
     fallback_token = os.environ.get("CANVAS_FALLBACK_TOKEN")
@@ -367,22 +424,32 @@ def fetch_course_data(client, course_id, course_code, sections_map, start_date, 
         
         section_id = env.get("course_section_id")
         
-        # Extract cohort from course_code (e.g. EDU-900-UAD4-Spring-2020 -> UAD4)
-        cohort_name = "-"
-        if course_code:
-            parts = course_code.split("-")
-            if len(parts) >= 3:
-                cohort_name = parts[2]
-            else:
-                cohort_name = sections_map.get(section_id, f"Section {section_id}")
-        else:
-            cohort_name = sections_map.get(section_id, f"Section {section_id}")
-        
+        # Robust cohort resolution - ALWAYS extracted from course_shell, never "Cohort 1"
+        # Step 1: Use Canvas section name ONLY if it's a short meaningful name
+        #         (not a full course shell like 'EDU-900-UAD4-Spring-2020')
+        cohort_name = None
+        if section_id and section_id in sections_map:
+            sec_title = (sections_map[section_id] or "").strip()
+            skip_titles = {"default section", "invalid section", "none", "section none", ""}
+            sec_parts = [p for p in re.split(r'-+', sec_title) if p.strip()]
+            is_full_shell = len(sec_parts) >= 3
+            if sec_title.lower() not in skip_titles and sec_title.upper() != (course_code or "").upper() and not is_full_shell:
+                cohort_name = sec_title
+
+        # Step 2: Always use extract_cohort() from course_code - reliable, no guessing
+        if not cohort_name:
+            cohort_name = extract_cohort(course_code) if course_code else None
+
+        # Step 3: Absolute last resort
+        if not cohort_name:
+            cohort_name = course_code or "Unknown"
+
+
+
         last_activity_env = parse_iso_datetime(env.get("last_activity_at"))
         total_activity_time = env.get("total_activity_time", 0) or 0
         
         if user_id not in student_records:
-            # Resolve Student ID following priority rules (filtering out email-like IDs):
             login_id_val = user.get("login_id") or env.get("login_id")
             if login_id_val and "@" in str(login_id_val):
                 login_id_val = None
@@ -395,11 +462,20 @@ def fetch_course_data(client, course_id, course_code, sections_map, start_date, 
                 (str(user_id) if user_id is not None else None) or 
                 "N/A"
             )
+            
+            # Robust email resolution
+            resolved_email = user.get("email") or user.get("login_id") or env.get("login_id") or "-"
+            if resolved_email == "-" or "@" not in str(resolved_email):
+                if user.get("login_id") and "@" in str(user.get("login_id")):
+                    resolved_email = str(user.get("login_id"))
+                elif user.get("sis_user_id") and "@" in str(user.get("sis_user_id")):
+                    resolved_email = str(user.get("sis_user_id"))
+
             student_records[user_id] = {
                 "user_id": user_id,
                 "student_id": resolved_student_id,
                 "name": user.get("name", "Unknown Learner"),
-                "email": user.get("email") or user.get("login_id") or "-",
+                "email": resolved_email,
                 "status": env.get("enrollment_state", "active"),
                 "cohorts": {cohort_name},
                 "last_access_date": last_activity_env,
@@ -417,17 +493,6 @@ def fetch_course_data(client, course_id, course_code, sections_map, start_date, 
                     student_records[user_id]["last_activity_timestamp"] = last_activity_env
                     student_records[user_id]["last_access_date"] = last_activity_env
 
-    print(f"[*] [{course_id}] Retrieving published course assignments...")
-    assignments = client.get_paginated(f"courses/{course_id}/assignments")
-    published_assignments = [a for a in assignments if a.get("published") is not False and a.get("omit_from_final_grade") is not True and a.get("grading_type") != "not_graded"]
-    print(f"[+] [{course_id}] Found {len(published_assignments)} active assignments.")
-
-    print(f"[*] [{course_id}] Retrieving learner submissions...")
-    submissions_list = client.get_paginated(
-        f"courses/{course_id}/students/submissions",
-        {"student_ids[]": "all", "include[]": "assignment"}
-    )
-    
     submissions_by_student = {}
     for sub in submissions_list:
         student_id = sub.get("user_id")
@@ -447,7 +512,7 @@ def fetch_course_data(client, course_id, course_code, sections_map, start_date, 
 
     student_weekly_activity = {}
     total_students = len(student_records)
-    print(f"[*] [{course_id}] Fetching weekly activity analytics concurrently (35 threads)...")
+    print(f"[*] [{course_id}] Fetching weekly activity analytics concurrently (40 threads)...")
     
     def fetch_single_student_activity(uid):
         try:
@@ -458,7 +523,7 @@ def fetch_course_data(client, course_id, course_code, sections_map, start_date, 
         except Exception:
             return uid, {"page_views": {}, "participations": []}
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=min(total_students, 35)) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(total_students, 40)) as executor:
         future_to_uid = {
             executor.submit(fetch_single_student_activity, uid): uid
             for uid in student_records
@@ -481,24 +546,37 @@ def fetch_course_data(client, course_id, course_code, sections_map, start_date, 
 # ==============================================================================
 # REPORT CALCULATIONS
 # ==============================================================================
-def process_report_data(student_records, assignments, submissions_map, activity_map, course_start, total_weeks, current_course_week):
+def process_report_data(student_records, assignments, submissions_map, activity_map, course_start, total_weeks, current_course_week, excluded_modules=None, is_business_mode=False):
     """Computes metrics, per-assignment Yes/No submission maps, weekly breakdowns, and simplified classification categories for students."""
     processed_students = []
     current_time = datetime.datetime.now(timezone.utc)
     
+    # Parse excluded module keywords
+    excluded_keywords = []
+    if excluded_modules:
+        if isinstance(excluded_modules, str):
+            excluded_keywords = [s.strip().lower() for s in excluded_modules.split(",") if s.strip()]
+        elif isinstance(excluded_modules, (list, set, tuple)):
+            for item in excluded_modules:
+                if isinstance(item, str):
+                    excluded_keywords.extend([s.strip().lower() for s in item.split(",") if s.strip()])
+
     week_ranges = []
     for w in range(1, total_weeks + 1):
         w_start = course_start + timedelta(weeks=w-1)
         w_end = course_start + timedelta(weeks=w) - timedelta(seconds=1)
         week_ranges.append((w, w_start, w_end))
 
-    # Filter to only active, published, and graded assignments
-    published_assignments = [
-        a for a in assignments 
-        if a.get("published") is not False 
-        and a.get("omit_from_final_grade") is not True 
-        and a.get("grading_type") != "not_graded"
-    ]
+    # Filter to active, published, graded, and non-excluded assignments
+    published_assignments = []
+    for a in assignments:
+        if a.get("published") is False or a.get("omit_from_final_grade") is True or a.get("grading_type") == "not_graded":
+            continue
+        a_name = (a.get("name") or "").strip()
+        if excluded_keywords and any(ex in a_name.lower() for ex in excluded_keywords):
+            continue
+        published_assignments.append(a)
+
     active_assignment_ids = {a["id"] for a in published_assignments}
 
     for user_id, student in student_records.items():
@@ -514,9 +592,11 @@ def process_report_data(student_records, assignments, submissions_map, activity_
         sub_dict = {s["assignment_id"]: s for s in student_subs}
         assignment_submissions = {}
 
+        due_assignments_count = 0
+        submitted_due_count = 0
+
         for assign in published_assignments:
             assign_id = assign["id"]
-            assign_name = assign.get("name", "Unknown Assignment")
             due_at = parse_iso_datetime(assign.get("due_at"))
             sub = sub_dict.get(assign_id)
 
@@ -544,6 +624,15 @@ def process_report_data(student_records, assignments, submissions_map, activity_
                             is_late = sub.get("late", False) or False
 
             assignment_submissions[assign_id] = "Yes" if has_submitted else "No"
+
+            # Check effective due date based on mode (-6 days for Business, exact for Education)
+            if due_at:
+                effective_due = due_at - timedelta(days=6) if is_business_mode else due_at
+                due_passed = effective_due <= current_time
+                if due_passed:
+                    due_assignments_count += 1
+                    if has_submitted:
+                        submitted_due_count += 1
 
             if due_at:
                 due_passed = due_at < current_time
@@ -626,38 +715,42 @@ def process_report_data(student_records, assignments, submissions_map, activity_
             if not overall_last_activity or canvas_last > overall_last_activity:
                 overall_last_activity = canvas_last
 
-        engagement_hours = total_time_seconds / 3600.0
         has_logged_in = (overall_last_activity is not None) and (total_time_seconds > 0)
 
-        w1_to_w2_seconds = sum(
-            weekly_stats[w]["time_spent"]
-            for w in range(1, 3)
-            if w in weekly_stats and isinstance(weekly_stats[w]["time_spent"], (int, float))
-        )
-        w1_to_w2_hours = w1_to_w2_seconds / 3600.0
+        # ── Refactored Engagement Classification & Overall Activity ──
+        if due_assignments_count > 0:
+            if submitted_due_count == due_assignments_count:
+                category = "ACTIVE"
+                comment = f"All {due_assignments_count} due assignments submitted on time."
+            elif submitted_due_count > 0:
+                category = "MISSED SUBMISSION"
+                comment = f"Submitted {submitted_due_count} of {due_assignments_count} due assignments."
+            elif has_logged_in:
+                category = "INACTIVE"
+                comment = "Logged into course but 0 due assignments submitted."
+            else:
+                category = "INACTIVE - NOT LOGGED IN"
+                comment = "Learner has not logged into course and has 0 submissions."
 
-        # Classification Logic
-        if not has_logged_in or (total_course_activities == 0 and total_time_seconds == 0):
-            category = "In Active"
-            comment = "Learner has not logged into the platform. There is no activity."
-        
-        elif total_assignments > 0 and submitted_count == 0:
-            category = "No Submission"
-            comment = "No Submisted any Signle Assignmnet"
-            
-        elif overdue_count > 0 or missing_count > 0:
-            category = "MISSED SUBMISSION"
-            comment = "Few Assignment Missed"
-            
-        elif current_course_week >= 2 and w1_to_w2_hours < 1.0:
-            category = "NOT ACTIVE"
-            comment = "Total combined engagement of Week 1 to Week 2 is less than 1 hour (applicable in or after Week 2)."
-            
+            submission_pct = (submitted_due_count / due_assignments_count) * 100.0
+            if submission_pct >= 50.0:
+                overall_activity = "Active"
+            else:
+                overall_activity = "Red Alert Learner"
         else:
-            category = "ACTIVE"
-            comment = "Good engagement and on track."
-
-        overall_activity = "Active" if category == "ACTIVE" else "Inactive"
+            # Fallback when no assignments are due yet (future dated)
+            if total_time_seconds >= 3600:
+                category = "ACTIVE"
+                overall_activity = "Active"
+                comment = "No assignments due yet. Active engagement (>= 1 hour)."
+            elif has_logged_in:
+                category = "INACTIVE"
+                overall_activity = "Red Alert Learner"
+                comment = "No assignments due yet. Total time spent is less than 1 hour."
+            else:
+                category = "INACTIVE - NOT LOGGED IN"
+                overall_activity = "Red Alert Learner"
+                comment = "No assignments due yet. Learner has not logged into course."
 
         cohorts_str = ", ".join(sorted(list(student["cohorts"])))
         student_data = {
@@ -725,11 +818,13 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
     CATEGORY_STYLES = {
         "ACTIVE": {"fill": "DCFCE7", "font": "166534"},
         "MISSED SUBMISSION": {"fill": "FEF3C7", "font": "92400E"},
+        "INACTIVE": {"fill": "FEE2E2", "font": "991B1B"},
+        "INACTIVE - NOT LOGGED IN": {"fill": "FECDD3", "font": "9F1239"},
+        "In Active": {"fill": "FEE2E2", "font": "991B1B"},
+        "No Submission": {"fill": "FEE2E2", "font": "991B1B"},
         "NOT ACTIVE": {"fill": "FEE2E2", "font": "991B1B"},
-        "In Active": {"fill": "E0F2FE", "font": "075985"},
-        "No Submission": {"fill": "F1F5F9", "font": "475569"},
-        "NO ACTIVITY": {"fill": "E0F2FE", "font": "075985"},
-        "LOW ACTIVITY - ASSIGNMENTS COMPLETED": {"fill": "F1F5F9", "font": "475569"}
+        "NO ACTIVITY": {"fill": "FECDD3", "font": "9F1239"},
+        "LOW ACTIVITY - ASSIGNMENTS COMPLETED": {"fill": "FEF3C7", "font": "92400E"}
     }
 
     WEEKLY_STATUS_STYLES = {
@@ -1120,17 +1215,15 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
                     
                 c_offset += 2
 
-        # Auto-fit columns dynamically based on header and data text length
+        # Auto-fit columns dynamically based on header (Row 2) and data text length
         for col in ws_detail.columns:
             max_len = 0
             for cell in col:
-                if cell.row == 1:
-                    continue
                 val_str = str(cell.value or '')
                 if len(val_str) > max_len:
                     max_len = len(val_str)
             col_letter = get_column_letter(col[0].column)
-            ws_detail.column_dimensions[col_letter].width = max(max_len + 8, 28)
+            ws_detail.column_dimensions[col_letter].width = max(max_len + 5, 24)
 
         # Enable Auto-Filter on detail sheet
         last_col_letter = get_column_letter(col_idx - 1)
@@ -1345,164 +1438,166 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
 # ==============================================================================
 # SAMPLE / MOCK DATA RUNNER FOR DEMO & TESTING
 # ==============================================================================
-def generate_mock_data(duration_weeks=6):
-    """Generates synthetic data representing two mock courses for local verification."""
-    print(f"[*] Generating mock learner and engagement data for 2 courses ({duration_weeks} weeks)...")
+def generate_mock_data(duration_weeks=6, course_codes=None):
+    """Generates synthetic data representing mock courses for local verification."""
+    if not course_codes:
+        codes = ["BUS-607-UC10-Fall-2025", "EDU-900-UAD4-Spring-2020"]
+    elif isinstance(course_codes, str):
+        codes = [c.strip() for c in course_codes.split(",") if c.strip()]
+    else:
+        codes = list(course_codes)
+
+    print(f"[*] Generating mock learner and engagement data for {len(codes)} courses ({duration_weeks} weeks)...")
     
-    # --------------------------------------------------------------------------
-    # COURSE 1 (Spring 2026)
-    # --------------------------------------------------------------------------
-    weeks_passed = max(1, duration_weeks - 2)
-    c1_details = {
-        "lms_code": "Canvas LMS (Mock)",
-        "course_code": "EDU-900-UAD4-Spring-2020",
-        "course_name": "Instructional Design Essentials",
-        "course_start_date": datetime.datetime.now(timezone.utc) - timedelta(weeks=weeks_passed, days=3),
-        "course_end_date": datetime.datetime.now(timezone.utc) + timedelta(weeks=1, days=4),
-        "total_modules": 8,
-        "total_learners_enrolled": 5
-    }
-
-    c1_students = [
-        # Student 1: Active, high engagement, on time
-        {
-            "cohort": "Section A",
-            "student_id": "STU1001",
-            "name": "Jane Miller",
-            "email": "jane.miller@edgewood.edu",
-            "status": "active",
-            "last_activity_timestamp": datetime.datetime.now(timezone.utc) - timedelta(hours=2),
-            "total_engagement_seconds": 25200, # 7 hours
-            "total_assignments": 6,
-            "submitted_assignments": 4,
-            "missing_assignments": 0,
-            "overdue_assignments": 0,
-            "on_time_submissions": 4,
-            "missed_names": "None",
-            "on_time_names": "None",
-            "category": "ACTIVE",
-            "overall_activity": "Active",
-            "comment": "Good engagement and on track.",
-            "weekly_data": {}
-        },
-        # Student 2: Never logged in
-        {
-            "cohort": "Section A",
-            "student_id": "STU1002",
-            "name": "John Doe",
-            "email": "john.doe@edgewood.edu",
-            "status": "active",
-            "last_activity_timestamp": None,
-            "total_engagement_seconds": 0,
-            "total_assignments": 6,
-            "submitted_assignments": 0,
-            "missing_assignments": 4,
-            "overdue_assignments": 4,
-            "on_time_submissions": 0,
-            "missed_names": "None",
-            "on_time_names": "None",
-            "category": "In Active",
-            "overall_activity": "Inactive",
-            "comment": "Learner has not logged into the platform. There is no activity.",
-            "weekly_data": {}
-        },
-        # Student 3: Missed submission
-        {
-            "cohort": "Section B",
-            "student_id": "STU1003",
-            "name": "Robert Smith",
-            "email": "robert.smith@edgewood.edu",
-            "status": "active",
-            "last_activity_timestamp": datetime.datetime.now(timezone.utc) - timedelta(days=1),
-            "total_engagement_seconds": 18000, # 5 hours
-            "total_assignments": 6,
-            "submitted_assignments": 3,
-            "missing_assignments": 1,
-            "overdue_assignments": 1,
-            "on_time_submissions": 3,
-            "missed_names": "None",
-            "on_time_names": "None",
-            "category": "MISSED SUBMISSION",
-            "overall_activity": "Inactive",
-            "comment": "Few Assignment Missed",
-            "weekly_data": {}
-        },
-        # Student 4: Logged in but 0 submissions
-        {
-            "cohort": "Section B",
-            "student_id": "STU1004",
-            "name": "Emily Davis",
-            "email": "emily.davis@edgewood.edu",
-            "status": "active",
-            "last_activity_timestamp": datetime.datetime.now(timezone.utc) - timedelta(days=3),
-            "total_engagement_seconds": 2400, # 40 mins
-            "total_assignments": 6,
-            "submitted_assignments": 0,
-            "missing_assignments": 4,
-            "overdue_assignments": 4,
-            "on_time_submissions": 0,
-            "missed_names": "None",
-            "on_time_names": "None",
-            "category": "No Submission",
-            "overall_activity": "Inactive",
-            "comment": "No Submisted any Signle Assignmnet",
-            "weekly_data": {}
-        },
-        # Student 5: Not active (Week 2+, engagement under 1 hour)
-        {
-            "cohort": "Section A",
-            "student_id": "STU1005",
-            "name": "Michael Brown",
-            "email": "michael.brown@edgewood.edu",
-            "status": "active",
-            "last_activity_timestamp": datetime.datetime.now(timezone.utc) - timedelta(days=5),
-            "total_engagement_seconds": 1500, # 25 mins
-            "total_assignments": 6,
-            "submitted_assignments": 4,
-            "missing_assignments": 0,
-            "overdue_assignments": 0,
-            "on_time_submissions": 2,
-            "missed_names": "None",
-            "on_time_names": "None",
-            "category": "NOT ACTIVE",
-            "overall_activity": "Inactive",
-            "comment": "Total combined engagement of Week 1 to Week 2 is less than 1 hour (applicable in or after Week 2).",
-            "weekly_data": {}
-        }
-    ]
-
-    # Calculate weekly values for Course 1
+    course_results = []
     current_time = datetime.datetime.now(timezone.utc)
-    for std in c1_students:
-        for w in range(1, duration_weeks + 1):
-            w_start = c1_details["course_start_date"] + timedelta(weeks=w-1)
-            if current_time < w_start:
-                std["weekly_data"][w] = {"time_spent": "-", "status": "-"}
-            else:
-                if std["category"] == "In Active":
-                    std["weekly_data"][w] = {"time_spent": 0, "status": "NOT MET"}
-                elif std["category"] == "ACTIVE":
-                    std["weekly_data"][w] = {"time_spent": 5040, "status": "MET"}
-                elif std["category"] == "MISSED SUBMISSION":
-                    std["weekly_data"][w] = {"time_spent": 3600, "status": "MET"}
-                elif std["category"] == "No Submission":
-                    std["weekly_data"][w] = {"time_spent": 480, "status": "MET"}
-                else: # NOT ACTIVE
-                    std["weekly_data"][w] = {"time_spent": 300 if w < 3 else 0, "status": "MET" if w < 3 else "NOT MET"}
 
-    # --------------------------------------------------------------------------
-    # COURSE 2 (Fall 2025)
-    # --------------------------------------------------------------------------
-    weeks_passed_c2 = max(1, duration_weeks - 1)
-    c2_details = {
-        "lms_code": "Canvas LMS (Mock)",
-        "course_code": "BUS-903-UC9-Fall-2025",
-        "course_name": "Analyzing Behavior in Organizations",
-        "course_start_date": datetime.datetime.now(timezone.utc) - timedelta(weeks=weeks_passed_c2, days=2),
-        "course_end_date": datetime.datetime.now(timezone.utc) + timedelta(days=5),
-        "total_modules": 12,
-        "total_learners_enrolled": 3
-    }
+    for idx, code in enumerate(codes, 1):
+        weeks_passed = max(1, duration_weeks - 2)
+        
+        parts = [p.strip() for p in code.split("-") if p.strip()]
+        
+        # Course Name: e.g. BUS-607 or EDU-900
+        if len(parts) >= 2:
+            cname = f"{parts[0]}-{parts[1]}"
+        else:
+            cname = code
+
+        # Cohort: e.g. UC10, UAD4, or Section 1
+        if len(parts) >= 3:
+            cohort1_val = parts[2]
+            cohort2_val = parts[2]
+        elif len(parts) >= 2:
+            cohort1_val = f"UC{idx}1"
+            cohort2_val = f"UC{idx}2"
+        else:
+            cohort1_val = "UC10"
+            cohort2_val = "UC10"
+
+        c_details = {
+            "lms_code": "Canvas LMS (Mock)",
+            "course_code": code,
+            "course_name": cname,
+            "course_start_date": current_time - timedelta(weeks=weeks_passed, days=3),
+            "course_end_date": current_time + timedelta(weeks=1, days=4),
+            "total_modules": 8,
+            "total_learners_enrolled": 4
+        }
+
+        c_students = [
+            {
+                "cohort": cohort1_val,
+                "student_id": f"STU{idx}001",
+                "name": "Jane Miller",
+                "email": "jane.miller@edgewood.edu",
+                "status": "active",
+                "last_activity_timestamp": current_time - timedelta(hours=2),
+                "total_engagement_seconds": 25200,
+                "total_assignments": 6,
+                "submitted_assignments": 6,
+                "missing_assignments": 0,
+                "overdue_assignments": 0,
+                "on_time_submissions": 6,
+                "category": "ACTIVE",
+                "overall_activity": "Active",
+                "comment": "All due assignments submitted on time.",
+                "weekly_data": {}
+            },
+            {
+                "cohort": cohort1_val,
+                "student_id": f"STU{idx}002",
+                "name": "John Doe",
+                "email": "john.doe@edgewood.edu",
+                "status": "active",
+                "last_activity_timestamp": current_time - timedelta(days=1),
+                "total_engagement_seconds": 18000,
+                "total_assignments": 6,
+                "submitted_assignments": 3,
+                "missing_assignments": 3,
+                "overdue_assignments": 3,
+                "on_time_submissions": 3,
+                "category": "MISSED SUBMISSION",
+                "overall_activity": "Active",
+                "comment": "Submitted 2 of 3 due assignments.",
+                "weekly_data": {}
+            },
+            {
+                "cohort": cohort2_val,
+                "student_id": f"STU{idx}003",
+                "name": "Robert Smith",
+                "email": "robert.smith@edgewood.edu",
+                "status": "active",
+                "last_activity_timestamp": current_time - timedelta(days=3),
+                "total_engagement_seconds": 2400,
+                "total_assignments": 6,
+                "submitted_assignments": 0,
+                "missing_assignments": 6,
+                "overdue_assignments": 6,
+                "on_time_submissions": 0,
+                "category": "INACTIVE",
+                "overall_activity": "Red Alert Learner",
+                "comment": "Logged into course but 0 due assignments submitted.",
+                "weekly_data": {}
+            },
+            {
+                "cohort": cohort2_val,
+                "student_id": f"STU{idx}004",
+                "name": "Emily Davis",
+                "email": "emily.davis@edgewood.edu",
+                "status": "active",
+                "last_activity_timestamp": None,
+                "total_engagement_seconds": 0,
+                "total_assignments": 6,
+                "submitted_assignments": 0,
+                "missing_assignments": 6,
+                "overdue_assignments": 6,
+                "on_time_submissions": 0,
+                "category": "INACTIVE - NOT LOGGED IN",
+                "overall_activity": "Red Alert Learner",
+                "comment": "Learner has not logged into course and has 0 submissions.",
+                "weekly_data": {}
+            }
+        ]
+
+        for std in c_students:
+            for w in range(1, duration_weeks + 1):
+                w_start = c_details["course_start_date"] + timedelta(weeks=w-1)
+                if current_time < w_start:
+                    std["weekly_data"][w] = {"time_spent": "-", "status": "-"}
+                else:
+                    if std["category"] == "INACTIVE - NOT LOGGED IN":
+                        std["weekly_data"][w] = {"time_spent": 0, "status": "NOT MET"}
+                    elif std["category"] == "ACTIVE":
+                        std["weekly_data"][w] = {"time_spent": 5040, "status": "MET"}
+                    elif std["category"] == "MISSED SUBMISSION":
+                        std["weekly_data"][w] = {"time_spent": 3600, "status": "MET"}
+                    else: # INACTIVE
+                        std["weekly_data"][w] = {"time_spent": 600, "status": "NOT MET"}
+
+        mock_assignments = [
+            {"id": 101 + idx * 10, "name": "Module 1 Quiz", "due_at": (current_time - timedelta(days=14)).isoformat()},
+            {"id": 102 + idx * 10, "name": "Module 2 Assignment", "due_at": (current_time - timedelta(days=7)).isoformat()},
+            {"id": 103 + idx * 10, "name": "Module 3 Project", "due_at": (current_time - timedelta(days=2)).isoformat()},
+        ]
+        
+        for std in c_students:
+            subs = {}
+            a1_id, a2_id, a3_id = 101 + idx * 10, 102 + idx * 10, 103 + idx * 10
+            if std["category"] == "ACTIVE":
+                subs = {a1_id: "Yes", a2_id: "Yes", a3_id: "Yes"}
+            elif std["category"] == "MISSED SUBMISSION":
+                subs = {a1_id: "Yes", a2_id: "Yes", a3_id: "No"}
+            else:
+                subs = {a1_id: "No", a2_id: "No", a3_id: "No"}
+            std["assignment_submissions"] = subs
+
+        course_results.append({
+            "course_details": c_details,
+            "processed_students": c_students,
+            "assignments": mock_assignments
+        })
+
+    return course_results
 
     c2_students = [
         # Student 1: Active

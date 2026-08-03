@@ -34,11 +34,13 @@ C_ALT_ROW  = "F8FAFC"
 CAT_STYLES = {
     "ACTIVE":                              {"bg": C_GREEN_BG, "fg": C_GREEN_FG},
     "MISSED SUBMISSION":                   {"bg": C_AMB_BG,   "fg": C_AMB_FG},
+    "INACTIVE":                            {"bg": C_RED_BG,   "fg": C_RED_FG},
+    "INACTIVE - NOT LOGGED IN":            {"bg": "FECDD3",    "fg": "9F1239"},
+    "In Active":                           {"bg": C_RED_BG,   "fg": C_RED_FG},
+    "No Submission":                       {"bg": C_RED_BG,   "fg": C_RED_FG},
     "NOT ACTIVE":                          {"bg": C_RED_BG,   "fg": C_RED_FG},
-    "In Active":                           {"bg": C_BLUE_BG,  "fg": C_BLUE_FG},
-    "No Submission":                       {"bg": C_GREY_BG,  "fg": C_GREY_FG},
-    "NO ACTIVITY":                         {"bg": C_BLUE_BG,  "fg": C_BLUE_FG},
-    "LOW ACTIVITY - ASSIGNMENTS COMPLETED":{"bg": C_GREY_BG,  "fg": C_GREY_FG},
+    "NO ACTIVITY":                         {"bg": "FECDD3",    "fg": "9F1239"},
+    "LOW ACTIVITY - ASSIGNMENTS COMPLETED":{"bg": C_AMB_BG,   "fg": C_AMB_FG},
 }
 
 WEEK_STYLES = {
@@ -232,9 +234,17 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
         if n_data > 2:
             for i in range(3, n_data + 1):
                 bg = C_ALT_ROW if i % 2 == 0 else C_WHITE
+                # General row format
                 b.format_cell_range(ws, f"A{i}:{end_col_letter}{i}",
                                     CellFormat(backgroundColor=_color(bg),
                                                borders=_border(),
+                                               horizontalAlignment="CENTER",
+                                               verticalAlignment="MIDDLE"))
+                # Left align Cohort, Name, Email (cols 3, 4, 5 -> C, D, E)
+                b.format_cell_range(ws, f"C{i}:E{i}",
+                                    CellFormat(backgroundColor=_color(bg),
+                                               borders=_border(),
+                                               horizontalAlignment="LEFT",
                                                verticalAlignment="MIDDLE"))
 
             for idx_a in range(num_asgn_cols):
@@ -290,16 +300,17 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
                                                    borders=_border()))
 
     ws.freeze(rows=2)
-    ws.columns_auto_resize(0, total_cols)
     try:
         dim_reqs = []
         dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 0, "endIndex": 2}, "properties": {"pixelSize": 180}, "fields": "pixelSize"}})
-        dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 2, "endIndex": 6}, "properties": {"pixelSize": 220}, "fields": "pixelSize"}})
-        dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 6, "endIndex": 10}, "properties": {"pixelSize": 180}, "fields": "pixelSize"}})
+        dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 2, "endIndex": 5}, "properties": {"pixelSize": 220}, "fields": "pixelSize"}})
+        dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 5, "endIndex": 10}, "properties": {"pixelSize": 190}, "fields": "pixelSize"}})
         if num_asgn_cols > 0:
-            dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 10, "endIndex": 10 + num_asgn_cols}, "properties": {"pixelSize": 280}, "fields": "pixelSize"}})
+            dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 10, "endIndex": 10 + num_asgn_cols}, "properties": {"pixelSize": 260}, "fields": "pixelSize"}})
         c_st = 10 + num_asgn_cols
-        dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": c_st, "endIndex": c_st + 2}, "properties": {"pixelSize": 280}, "fields": "pixelSize"}})
+        dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": c_st, "endIndex": c_st + 2}, "properties": {"pixelSize": 260}, "fields": "pixelSize"}})
+        w_st = c_st + 2
+        dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": w_st, "endIndex": w_st + (duration_weeks * 2)}, "properties": {"pixelSize": 190}, "fields": "pixelSize"}})
         sh.batch_update({"requests": dim_reqs})
     except Exception as dim_err:
         print(f"  Note: Column width adjustment: {dim_err}")
@@ -357,6 +368,14 @@ def _update_consolidate(sh, duration_weeks=6):
         ws_con.freeze(rows=2)
 
 
+def _format_hms(s):
+    s = int(s or 0)
+    h = s // 3600
+    m = (s % 3600) // 60
+    sec = s % 60
+    return f"{h:02d}:{m:02d}:{sec:02d}"
+
+
 # ── Column letter helper ───────────────────────────────────────────────────────
 def _col_letter(n):
     """Convert 1-based column index to spreadsheet letter (A, B, … AA, AB…)."""
@@ -369,7 +388,7 @@ def _col_letter(n):
 
 # ── Dashboard cache ───────────────────────────────────────────────────────────
 _dashboard_cache = {"data": None, "fetched_at": 0}
-CACHE_TTL = 3600  # Cache for 1 hour; cleared explicitly on new audit runs
+CACHE_TTL = 30  # 30-second memory cache TTL for instant sub-millisecond responses
 CACHE_FILE = os.path.join(SCRIPT_DIR, "dashboard_cache.json")
 
 
@@ -384,28 +403,30 @@ def get_dashboard_data(force=False):
     import time as _t
     now = _t.time()
 
-    # If not forced, try to return in-memory cache first
+    # 1. Return in-memory cache if fresh and not forced
     if not force and _dashboard_cache["data"] and (now - _dashboard_cache["fetched_at"]) < CACHE_TTL:
         return _dashboard_cache["data"]
 
-    # If not forced, try to load from disk cache
+    # 2. Return disk cache if available and not forced
     if not force and os.path.exists(CACHE_FILE):
         try:
-            with open(CACHE_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                _dashboard_cache["data"] = data
-                _dashboard_cache["fetched_at"] = now
-                return data
-        except Exception as ce:
-            print(f"Error loading dashboard disk cache: {ce}")
+            mtime = os.path.getmtime(CACHE_FILE)
+            if (now - mtime) < 120:  # Fresh disk cache within 2 minutes
+                with open(CACHE_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    _dashboard_cache["data"] = data
+                    _dashboard_cache["fetched_at"] = now
+                    return data
+        except Exception:
+            pass
 
-    # Otherwise, fetch fresh data from Google Sheets API
+    # 3. Otherwise, fetch fresh live data from Google Sheets API
     print("  Fetching fresh dashboard data from Google Sheets API...")
     gc = get_google_client()
     sh = gc.open_by_key(SPREADSHEET_ID)
 
     # Read all course-specific tabs in parallel; skip any Consolidate tab
-    all_data_rows = []
+    all_data_rows = []   # list of (row_list, header_row) tuples
     course_tabs   = []
     with ThreadPoolExecutor(max_workers=10) as ex:
         for title, vals in ex.map(_fetch_ws, sh.worksheets()):
@@ -413,7 +434,9 @@ def get_dashboard_data(force=False):
                 continue          # ignore any leftover Consolidate tab
             if vals and len(vals) > 2:
                 course_tabs.append(title)
-                all_data_rows.extend(vals[2:])   # skip the 2 header rows per tab
+                header_row = vals[1]  # row 2 (0-indexed: index 1) has column names
+                for data_row in vals[2:]:  # data starts at row 3
+                    all_data_rows.append((data_row, header_row))
 
     # ── Parse each row ───────────────────────────────────────────────────────
     total_courses_set = set()
@@ -426,8 +449,11 @@ def get_dashboard_data(force=False):
     cohort_map   = {}   # cohort -> {name, active, inactive, total, missing, total_time_s, valid_time}
     watchlist    = []   # inactive learners detail
     top_learners = []   # highest time spent
+    learner_profiles = {} # email/name -> profile detail
+    weekly_agg   = {}   # week_num -> {met: N, not_met: N, total: N}
+    course_weekly = {}  # course_id -> {week_num -> {met: N, not_met: N, total: N}}
 
-    for row in all_data_rows:
+    for row, header_row in all_data_rows:
         if len(row) < 9:
             continue
         course_id    = row[0].strip()
@@ -443,22 +469,65 @@ def get_dashboard_data(force=False):
         if not learner_name:
             continue
 
-        if len(row) > 9 and row[9].strip().isdigit():
-            # Legacy format with numeric submission counts
-            submitted = _safe_int(row[9])
-            missing   = _safe_int(row[10])
-            overdue   = _safe_int(row[11])
-            category  = row[13].strip() if len(row) > 13 else "N/A"
-            overall   = row[14].strip() if len(row) > 14 else "N/A"
-        else:
-            # New format with per-assignment Yes/No columns
-            asgn_cells = row[9 : 9 + total_asgn] if len(row) >= 9 + total_asgn else row[9:]
-            submitted  = sum(1 for c in asgn_cells if c.strip().lower() == "yes")
-            missing    = sum(1 for c in asgn_cells if c.strip().lower() == "no")
-            overdue    = missing
-            cat_idx    = 9 + total_asgn
-            category   = row[cat_idx].strip() if len(row) > cat_idx else "N/A"
-            overall    = row[cat_idx + 1].strip() if len(row) > cat_idx + 1 else "N/A"
+        # ── Use header to find exact column positions ──────────────────────────
+        # Header row contains: ..."Engagement Category", "Overall Activity", ...
+        hdr_lower = [h.strip().lower() for h in header_row]
+        try:
+            overall_idx  = hdr_lower.index("overall activity")
+            category_idx = hdr_lower.index("engagement category")
+        except ValueError:
+            # Fallback: dynamic calculation based on total_asgn
+            # Columns: [0..8 fixed] + [9=completed] + [10..10+N-1 per-asgn Yes/No] + [cat] + [overall]
+            category_idx = 10 + total_asgn
+            overall_idx  = category_idx + 1
+
+        overall  = row[overall_idx].strip()  if len(row) > overall_idx  else "N/A"
+        category = row[category_idx].strip() if len(row) > category_idx else "N/A"
+
+        # Count submissions and extract exact missed assignment module names
+        asgn_start = 10
+        asgn_end   = asgn_start + total_asgn
+        asgn_cells = row[asgn_start:asgn_end] if len(row) >= asgn_end else row[asgn_start:]
+        submitted  = sum(1 for c in asgn_cells if c.strip().lower() == "yes")
+        missing    = sum(1 for c in asgn_cells if c.strip().lower() == "no")
+
+        missed_assignments = []
+        for idx_col, cell_val in enumerate(asgn_cells):
+            if cell_val.strip().lower() == "no":
+                col_header_idx = asgn_start + idx_col
+                title = header_row[col_header_idx].strip() if len(header_row) > col_header_idx else f"Assignment {idx_col+1}"
+                missed_assignments.append(title)
+
+        # ── Read Weekly W1-W6 Status columns ──────────────────────────
+        learner_weekly = {}
+        for wi in range(1, 7):
+            wk_status_hdr = f"w{wi} status"
+            if wk_status_hdr in hdr_lower:
+                wk_idx = hdr_lower.index(wk_status_hdr)
+                wk_val = row[wk_idx].strip().upper() if len(row) > wk_idx else "-"
+            else:
+                wk_val = "-"
+            learner_weekly[wi] = wk_val
+
+            if wk_val in ("MET", "NOT MET"):
+                if wi not in weekly_agg:
+                    weekly_agg[wi] = {"met": 0, "not_met": 0, "total": 0}
+                weekly_agg[wi]["total"] += 1
+                if wk_val == "MET":
+                    weekly_agg[wi]["met"] += 1
+                else:
+                    weekly_agg[wi]["not_met"] += 1
+
+                # Per-course weekly aggregation
+                if course_id not in course_weekly:
+                    course_weekly[course_id] = {}
+                if wi not in course_weekly[course_id]:
+                    course_weekly[course_id][wi] = {"met": 0, "not_met": 0, "total": 0}
+                course_weekly[course_id][wi]["total"] += 1
+                if wk_val == "MET":
+                    course_weekly[course_id][wi]["met"] += 1
+                else:
+                    course_weekly[course_id][wi]["not_met"] += 1
 
         total_courses_set.add(course_id)
         total_missing    += missing
@@ -482,17 +551,29 @@ def get_dashboard_data(force=False):
                 "cohort": cohort,
                 "category": category,
                 "missing": missing,
-                "overdue": overdue,
+                "overdue": missing,  # overdue == missing for per-assignment format
                 "last_act": last_act,
                 "time_hms": time_str,
+                "missed_assignments": missed_assignments,
             })
+
 
         cat_counts[category] = cat_counts.get(category, 0) + 1
 
         # Course breakdown
         if course_id not in course_map:
-            course_map[course_id] = {"name": course_name, "active": 0, "inactive": 0, "total": 0,
-                                      "missing": 0, "submitted": 0, "total_asgn": 0}
+            course_map[course_id] = {
+                "course_id": course_id,
+                "name": course_name,
+                "active": 0,
+                "inactive": 0,
+                "missed_submissions": 0,
+                "total": 0,
+                "missing": 0,
+                "submitted": 0,
+                "total_asgn": 0,
+                "health_pct": 0
+            }
         cm = course_map[course_id]
         cm["total"] += 1
         cm["missing"]    += missing
@@ -502,11 +583,21 @@ def get_dashboard_data(force=False):
             cm["active"] += 1
         else:
             cm["inactive"] += 1
+        if category == "MISSED SUBMISSION":
+            cm["missed_submissions"] += 1
 
         # Cohort breakdown
         if cohort not in cohort_map:
-            cohort_map[cohort] = {"name": cohort, "active": 0, "inactive": 0, "total": 0,
-                                  "missing": 0, "total_time_s": 0, "valid_time": 0}
+            cohort_map[cohort] = {
+                "name": cohort,
+                "active": 0,
+                "inactive": 0,
+                "missed_submissions": 0,
+                "total": 0,
+                "missing": 0,
+                "total_time_s": 0,
+                "valid_time": 0
+            }
         coh = cohort_map[cohort]
         coh["total"] += 1
         coh["missing"] += missing
@@ -517,23 +608,71 @@ def get_dashboard_data(force=False):
             coh["active"] += 1
         else:
             coh["inactive"] += 1
+        if category == "MISSED SUBMISSION":
+            coh["missed_submissions"] += 1
+        # Populate learner profile data for search modal
+        l_key = (email or learner_name).strip().lower()
+        if l_key:
+            if l_key not in learner_profiles:
+                learner_profiles[l_key] = {
+                    "learner_name": learner_name,
+                    "email": email,
+                    "courses": [],
+                    "total_time_s": 0,
+                    "submitted": 0,
+                    "total_asgn": 0,
+                    "overall": overall,
+                    "category": category,
+                    "missed_assignments": []
+                }
+            lp = learner_profiles[l_key]
+            if course_name and course_name not in lp["courses"]:
+                lp["courses"].append(course_name)
+            lp["total_time_s"] += ts
+            lp["submitted"] += submitted
+            lp["total_asgn"] += total_asgn
+            if overall == "Active":
+                lp["overall"] = "Active"
+            for ma in missed_assignments:
+                if ma not in lp["missed_assignments"]:
+                    lp["missed_assignments"].append(ma)
 
-        top_learners.append({
-            "learner_name": learner_name,
-            "email": email,
-            "course_name": course_name,
-            "time_seconds": ts,
-            "time_hms": time_str,
-            "submitted": submitted,
-            "total_asgn": total_asgn,
-            "category": category,
-            "overall": overall,
-        })
+        # Only include learners with > 10 minutes (600s) time spent for content consumption leaderboard
+        if ts >= 600:
+            top_learners.append({
+                "learner_name": learner_name,
+                "email": email,
+                "course_id": course_id,
+                "course_name": course_name,
+                "cohort": cohort,
+                "time_seconds": ts,
+                "time_hms": time_str,
+                "submitted": submitted,
+                "total_asgn": total_asgn,
+                "category": category,
+                "overall": overall,
+                "last_act": last_act,
+                "missed_assignments": missed_assignments,
+            })
 
     avg_time_h = round((total_time_s / valid_time) / 3600, 2) if valid_time else 0
 
     # Sort top learners by time spent
     top_learners.sort(key=lambda x: x["time_seconds"], reverse=True)
+
+    # Format learner profiles HMS strings
+    for lk, lp in learner_profiles.items():
+        lp["total_time_hms"] = _format_hms(lp["total_time_s"])
+        avg_s = int(lp["total_time_s"] / max(1, len(lp["courses"])))
+        lp["avg_time_hms"] = _format_hms(avg_s)
+
+    # Process course health percentage
+    for cid, cinfo in course_map.items():
+        max_possible = cinfo["total"] * (cinfo["total_asgn"] / max(1, cinfo["total"]))
+        if max_possible > 0:
+            cinfo["health_pct"] = round(min(100.0, (cinfo["submitted"] / max(1, max_possible)) * 100.0), 1)
+        else:
+            cinfo["health_pct"] = 0.0
 
     # Process cohort map to calculate averages
     processed_cohorts = {}
@@ -544,26 +683,65 @@ def get_dashboard_data(force=False):
             "total": cinfo["total"],
             "active": cinfo["active"],
             "inactive": cinfo["inactive"],
+            "missed_submissions": cinfo["missed_submissions"],
             "missing": cinfo["missing"],
             "avg_time_hours": avg_coh_t
         }
 
+    total_learners_cnt = active_ct + inactive_ct
+    missed_submissions_cnt = cat_counts.get("MISSED SUBMISSION", 0)
+    inactive_only_cnt = cat_counts.get("INACTIVE", 0) + cat_counts.get("INACTIVE - NOT LOGGED IN", 0)
+    eng_ratio = round((active_ct / max(1, total_learners_cnt)) * 100.0, 1) if total_learners_cnt else 0.0
+
+    # Build weekly summary list sorted by week number
+    weekly_summary = []
+    for wi in sorted(weekly_agg.keys()):
+        wa = weekly_agg[wi]
+        pct = round((wa["met"] / max(1, wa["total"])) * 100, 1)
+        weekly_summary.append({
+            "week": wi,
+            "met": wa["met"],
+            "not_met": wa["not_met"],
+            "total": wa["total"],
+            "met_pct": pct
+        })
+
+    # Attach per-course weekly data to course_map
+    for cid, wk_data in course_weekly.items():
+        if cid in course_map:
+            cw_list = []
+            for wi in sorted(wk_data.keys()):
+                wd = wk_data[wi]
+                pct = round((wd["met"] / max(1, wd["total"])) * 100, 1)
+                cw_list.append({
+                    "week": wi,
+                    "met": wd["met"],
+                    "not_met": wd["not_met"],
+                    "total": wd["total"],
+                    "met_pct": pct
+                })
+            course_map[cid]["weekly"] = cw_list
+
     payload = {
         "kpis": {
             "total_courses": len(total_courses_set),
-            "total_learners": active_ct + inactive_ct,
+            "total_learners": total_learners_cnt,
             "active_learners": active_ct,
+            "missed_submission_learners": missed_submissions_cnt,
             "inactive_learners": inactive_ct,
             "total_missing": total_missing,
             "total_submitted": total_submitted,
             "avg_time_hours": avg_time_h,
+            "engagement_ratio": eng_ratio
         },
         "cat_counts": cat_counts,
         "course_tabs": sorted(course_tabs),
         "course_breakdown": course_map,
         "cohort_breakdown": processed_cohorts,
+        "weekly_summary": weekly_summary,
         "watchlist": watchlist[:100],
-        "top_learners": top_learners[:50],
+        "top_learners": top_learners[:100],
+        "learner_profiles": learner_profiles
     }
 
     # Save to disk cache
