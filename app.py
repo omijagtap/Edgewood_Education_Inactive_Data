@@ -14,6 +14,7 @@ import canvas_engagement_tracker as tracker
 import sheets_helper
 
 app = Flask(__name__)
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "edgewood_secret_key_engagement")
 
 TASK_STORE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "task_store")

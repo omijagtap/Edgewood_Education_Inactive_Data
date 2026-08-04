@@ -753,11 +753,19 @@ def process_report_data(student_records, assignments, submissions_map, activity_
                 comment = "No assignments due yet. Learner has not logged into course."
 
         cohorts_str = ", ".join(sorted(list(student["cohorts"])))
+        try:
+            import sheets_helper
+            prog_info = sheets_helper.lookup_learner_program(student.get("email"))
+        except Exception:
+            prog_info = {"program": "Not Found in Sheet", "degree_code": "Not Found in Sheet"}
+
         student_data = {
             "cohort": cohorts_str,
             "student_id": student["student_id"],
             "name": student["name"],
             "email": student["email"],
+            "program": prog_info["program"],
+            "degree_code": prog_info["degree_code"],
             "status": student["status"],
             "last_activity_timestamp": overall_last_activity.replace(tzinfo=None) if overall_last_activity else None,
             "total_engagement_seconds": total_time_seconds,

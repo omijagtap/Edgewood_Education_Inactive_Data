@@ -13,6 +13,7 @@
         rel="stylesheet" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         * {
             box-sizing: border-box
@@ -323,11 +324,38 @@
 
         <!-- ── TOP NAV ── -->
         <header class="flex items-center justify-between mb-8 flex-wrap gap-3 relative z-50">
-            <!-- Left: Brand -->
-            <div class="flex items-center gap-3">
+            <!-- Left: Brand + Action Buttons -->
+            <div class="flex items-center gap-4 flex-wrap">
                 <div>
                     <span class="text-sm font-black tracking-tight shiny-text">Edgewood Education</span>
                     <span class="text-xs font-light text-white/40 ml-1">Inactive Learner Tracker</span>
+                </div>
+                <!-- Action Buttons: Refresh Data & Download PDF (Dashboard View) -->
+                <div id="dash-brand-actions" class="hidden items-center gap-2 flex-wrap">
+                    <button type="button" onclick="manualRefreshDashboard()" id="manual-refresh-btn"
+                        title="Instantly refresh sheet data"
+                        class="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white/90 border border-white/15 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-sm">
+                        <svg id="refresh-icon-spin" class="w-3.5 h-3.5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>Refresh Data</span>
+                    </button>
+                    <button type="button" onclick="resetAllFilters()" id="reset-filters-btn"
+                        title="Reset all search filters and date ranges to show all learners"
+                        class="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/35 text-rose-300 border border-rose-500/30 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-sm">
+                        <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>Reset Filters</span>
+                    </button>
+                    <button type="button" onclick="downloadDashboardPDF()" id="download-pdf-btn"
+                        title="Download comprehensive PDF report with active filters"
+                        class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg transition-all shadow-md flex items-center gap-1.5 cursor-pointer">
+                        <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Download PDF</span>
+                    </button>
                 </div>
             </div>
 
@@ -375,10 +403,10 @@
                 </div>
                 <nav class="flex glass-sm rounded-full p-1 gap-1">
                     <button id="nav-audit" onclick="switchView('audit')"
-                        class="tab-active px-5 py-2 text-xs font-semibold rounded-full border border-transparent transition-all">Run
+                        class="tab-inactive px-5 py-2 text-xs font-semibold rounded-full border border-transparent transition-all">Run
                         Audit</button>
                     <button id="nav-dashboard" onclick="switchView('dashboard')"
-                        class="tab-inactive px-5 py-2 text-xs font-semibold rounded-full border border-transparent transition-all">Dashboard</button>
+                        class="tab-active px-5 py-2 text-xs font-semibold rounded-full border border-transparent transition-all">Dashboard</button>
                 </nav>
             </div>
         </header>
@@ -386,7 +414,7 @@
         <!-- ═══════════════════════════════════════════════════════════════ -->
         <!-- AUDIT VIEW -->
         <!-- ═══════════════════════════════════════════════════════════════ -->
-        <div id="audit-view">
+        <div id="audit-view" class="hidden">
             <div class="glass rounded-[2.5rem] p-8 lg:p-14 flex flex-col lg:flex-row gap-12 lg:gap-16">
                 <!-- Left – Info -->
                 <div class="lg:w-1/2 flex flex-col justify-center">
@@ -496,7 +524,7 @@
         <!-- ═══════════════════════════════════════════════════════════════ -->
         <!-- DASHBOARD VIEW -->
         <!-- ═══════════════════════════════════════════════════════════════ -->
-        <div id="dashboard-view" class="hidden space-y-6">
+        <div id="dashboard-view" class="space-y-6">
 
             <!-- Top Dashboard Controls & Date Range Filter -->
             <div id="dash-top-controls"
@@ -536,38 +564,41 @@
                             class="hover:text-white text-blue-400 font-bold ml-1 cursor-pointer">✕</button>
                     </div>
                 </div>
-                <div class="flex items-center gap-2 flex-wrap relative z-[9999]">
-                    <span class="text-xs text-white/50 font-medium">Course Shell:</span>
-                    <!-- New Search Box with Right-side Dropdown Arrow & Checkbox List -->
-                    <div class="relative flex items-center z-[9999]" id="cs-search-container">
-                        <div class="flex items-center bg-black/50 text-xs text-white px-3 py-1.5 rounded-lg border border-white/15 focus-within:border-white/40 transition-all font-mono min-w-[200px] max-w-[320px]">
-                            <input type="text" id="course-search-input-top" oninput="onCourseSearchInput(this.value)" onclick="openCourseDropdown()"
-                                placeholder="Search course shell..."
-                                class="bg-transparent text-xs text-white placeholder-white/30 focus:outline-none w-full font-mono" />
-                            <button type="button" id="cs-dropdown-toggle-btn" onclick="toggleCourseDropdown(event)"
-                                title="Toggle Course Shell list"
-                                class="ml-1.5 text-white/50 hover:text-white transition-colors p-0.5 flex-shrink-0 cursor-pointer focus:outline-none">
-                                <svg id="cs-arrow-icon" class="w-3.5 h-3.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </button>
-                        </div>
-                        <div id="cs-checkbox-dropdown" class="hidden absolute right-0 top-full mt-2 rounded-xl border border-white/25 p-2.5 max-h-72 overflow-y-auto shadow-2xl z-[999999] w-full min-w-[280px]"
-                            style="background: #09090b !important; border: 1px solid rgba(255,255,255,0.25); box-shadow: 0 30px 80px rgba(0,0,0,0.98); opacity: 1 !important;">
+                <!-- Right: Course Shell & Program Filter Selectors -->
+                <div class="flex items-center gap-3 flex-wrap relative z-[9999]">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-white/50 font-medium">Course Shell:</span>
+                        <!-- Search Box with Right-side Dropdown Arrow & Checkbox List -->
+                        <div class="relative flex items-center z-[9999]" id="cs-search-container">
+                            <div class="flex items-center bg-black/50 text-xs text-white px-3 py-1.5 rounded-lg border border-white/15 focus-within:border-white/40 transition-all font-mono min-w-[200px] max-w-[320px]">
+                                <input type="text" id="course-search-input-top" oninput="onCourseSearchInput(this.value)" onclick="openCourseDropdown()"
+                                    placeholder="Search course shell..."
+                                    class="bg-transparent text-xs text-white placeholder-white/30 focus:outline-none w-full font-mono" />
+                                <button type="button" id="cs-dropdown-toggle-btn" onclick="toggleCourseDropdown(event)"
+                                    title="Toggle Course Shell list"
+                                    class="ml-1.5 text-white/50 hover:text-white transition-colors p-0.5 flex-shrink-0 cursor-pointer focus:outline-none">
+                                    <svg id="cs-arrow-icon" class="w-3.5 h-3.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                            </div>
+                            <div id="cs-checkbox-dropdown" class="hidden absolute right-0 top-full mt-2 rounded-xl border border-white/25 p-2.5 max-h-72 overflow-y-auto shadow-2xl z-[999999] w-full min-w-[280px]"
+                                style="background: #09090b !important; border: 1px solid rgba(255,255,255,0.25); box-shadow: 0 30px 80px rgba(0,0,0,0.98); opacity: 1 !important;">
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Simple Clean Manual Refresh Button -->
-                    <button type="button" onclick="manualRefreshDashboard()" id="manual-refresh-btn"
-                        title="Instantly refresh sheet data"
-                        class="px-3.5 py-1.5 bg-white/10 hover:bg-white/20 text-white/90 border border-white/10 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 cursor-pointer">
-                        <svg id="refresh-icon-spin" class="w-3.5 h-3.5 text-white/70" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        <span>Refresh Data</span>
-                    </button>
+                    <!-- Program / Degree Filter Dropdown -->
+                    <div class="flex items-center gap-1.5 bg-black/50 text-xs text-white px-3 py-1.5 rounded-lg border border-white/15 focus-within:border-white/40 transition-all font-mono">
+                        <span class="text-xs text-white/50 font-medium">Program:</span>
+                        <select id="program-filter-select" onchange="onProgramFilterChange(this.value)"
+                            class="bg-transparent text-xs text-white font-semibold focus:outline-none cursor-pointer border-none py-0 pl-1 pr-2">
+                            <option value="ALL" class="bg-slate-900 text-white">All Programs</option>
+                            <option value="MBA" class="bg-slate-900 text-white">MBA (Includes Dual MBA)</option>
+                            <option value="DBA" class="bg-slate-900 text-white">DBA (Includes Dual DBA)</option>
+                            <option value="DUAL" class="bg-slate-900 text-white">Dual Program (All Dual)</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -590,35 +621,52 @@
                             class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Courses</span>
                         <span id="kpi-courses" class="text-lg font-black text-white">--</span>
                     </div>
-                    <div class="kpi-card glass rounded-lg p-2.5" title="Total unique enrolled learners">
-                        <span class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Total
-                            Learners</span>
-                        <span id="kpi-total" class="text-lg font-black text-white">--</span>
+                    <div class="kpi-card glass rounded-lg p-2.5" title="Total unique enrolled learners with MBA / DBA breakdown">
+                        <span class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Total Learners</span>
+                        <div class="flex items-baseline justify-between">
+                            <span id="kpi-total" class="text-lg font-black text-white">--</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 mt-1 pt-1 border-t border-white/10 text-[9px] font-mono text-white/60">
+                            <span class="text-blue-300 font-bold" title="MBA Total">MBA: <span id="kpi-total-mba">0</span></span>
+                            <span class="text-white/20">•</span>
+                            <span class="text-purple-300 font-bold" title="DBA Total">DBA: <span id="kpi-total-dba">0</span></span>
+                        </div>
                     </div>
-                    <div class="kpi-card glass rounded-lg p-2.5"
-                        title="All learners who have submitted all required assignments">
-                        <span class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Active
-                            Learners</span>
+                    <div class="kpi-card glass rounded-lg p-2.5" title="All learners who have submitted all required assignments">
+                        <span class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Active Learners</span>
                         <span id="kpi-active" class="text-lg font-black text-emerald-400">--</span>
+                        <div class="flex items-center gap-1.5 mt-1 pt-1 border-t border-white/10 text-[9px] font-mono text-white/60">
+                            <span class="text-blue-300 font-bold" title="MBA Active">MBA: <span id="kpi-active-mba">0</span></span>
+                            <span class="text-white/20">•</span>
+                            <span class="text-purple-300 font-bold" title="DBA Active">DBA: <span id="kpi-active-dba">0</span></span>
+                        </div>
                     </div>
                     <div class="kpi-card glass rounded-lg p-2.5" title="Learners who have missed 1 or more submissions">
-                        <span class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Missed
-                            Subs</span>
+                        <span class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Missed Subs</span>
                         <span id="kpi-missed" class="text-lg font-black text-amber-400">--</span>
+                        <div class="flex items-center gap-1.5 mt-1 pt-1 border-t border-white/10 text-[9px] font-mono text-white/60">
+                            <span class="text-blue-300 font-bold" title="MBA Missed">MBA: <span id="kpi-missed-mba">0</span></span>
+                            <span class="text-white/20">•</span>
+                            <span class="text-purple-300 font-bold" title="DBA Missed">DBA: <span id="kpi-missed-dba">0</span></span>
+                        </div>
                     </div>
-                    <div class="kpi-card glass rounded-lg p-2.5"
-                        title="Learners who have not logged in or missed all submissions">
-                        <span
-                            class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Inactive</span>
+                    <div class="kpi-card glass rounded-lg p-2.5" title="Learners who have not logged in or missed all submissions">
+                        <span class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Inactive</span>
                         <span id="kpi-inactive" class="text-lg font-black text-red-400">--</span>
+                        <div class="flex items-center gap-1.5 mt-1 pt-1 border-t border-white/10 text-[9px] font-mono text-white/60">
+                            <span class="text-blue-300 font-bold" title="MBA Inactive">MBA: <span id="kpi-inactive-mba">0</span></span>
+                            <span class="text-white/20">•</span>
+                            <span class="text-purple-300 font-bold" title="DBA Inactive">DBA: <span id="kpi-inactive-dba">0</span></span>
+                        </div>
                     </div>
-                    <div class="kpi-card glass rounded-lg p-2.5"
-                        title="The overall average time spent across all sections and modules">
-                        <span class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Avg
-                            Time</span>
-                        <div class="flex items-baseline gap-1"><span id="kpi-time"
-                                class="text-lg font-black text-white">--</span><span
-                                class="text-[9px] text-white/40">hrs</span></div>
+                    <div class="kpi-card glass rounded-lg p-2.5" title="The overall average time spent across all sections and modules">
+                        <span class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Avg Time</span>
+                        <div class="flex items-baseline gap-1"><span id="kpi-time" class="text-lg font-black text-white">--</span><span class="text-[9px] text-white/40">hrs</span></div>
+                        <div class="flex items-center gap-1.5 mt-1 pt-1 border-t border-white/10 text-[9px] font-mono text-white/60">
+                            <span class="text-blue-300 font-bold" title="MBA Average Time">MBA: <span id="kpi-time-mba">0h</span></span>
+                            <span class="text-white/20">•</span>
+                            <span class="text-purple-300 font-bold" title="DBA Average Time">DBA: <span id="kpi-time-dba">0h</span></span>
+                        </div>
                     </div>
                 </div>
 
@@ -685,6 +733,7 @@
                                     <th class="py-2.5 px-3 text-center">Active Learners</th>
                                     <th class="py-2.5 px-3 text-center">Inactive Learners</th>
                                     <th class="py-2.5 px-3 text-center">Missed Subs</th>
+                                    <th class="py-2.5 px-3 text-center">Avg Time</th>
                                     <th class="py-2.5 px-3 text-center min-w-[140px]">6-Week Health Bar</th>
                                 </tr>
                             </thead>
@@ -713,6 +762,7 @@
                                     <th class="py-2.5 px-3 w-10">Rank</th>
                                     <th class="py-2.5 px-3">Learner Name</th>
                                     <th class="py-2.5 px-3">Official Email</th>
+                                    <th class="py-2.5 px-3 text-center">Program / Degree</th>
                                     <th class="py-2.5 px-3">Course</th>
                                     <th class="py-2.5 px-3 text-center">Time Spent</th>
                                     <th class="py-2.5 px-3 text-center">Submitted / Assigned</th>
@@ -933,31 +983,43 @@
         }
 
         function saveFilterPreferences() {
-            const course = document.getElementById('course-filter-select')?.value || 'ALL';
             const dateToggle = document.getElementById('date-filter-toggle')?.checked ? '1' : '0';
             const startDate = document.getElementById('dash-start-date')?.value || '';
             const endDate = document.getElementById('dash-end-date')?.value || '';
+            const program = document.getElementById('program-filter-select')?.value || 'ALL';
+            const checkedShells = Array.from(_selectedCourseShells).join(',');
 
-            setCookie('pref_course_filter', course, 30);
             setCookie('pref_date_toggle', dateToggle, 30);
             setCookie('pref_start_date', startDate, 30);
             setCookie('pref_end_date', endDate, 30);
+            setCookie('pref_program_filter', program, 30);
+            setCookie('pref_checked_shells', checkedShells, 30);
 
-            localStorage.setItem('pref_course_filter', course);
             localStorage.setItem('pref_date_toggle', dateToggle);
             localStorage.setItem('pref_start_date', startDate);
             localStorage.setItem('pref_end_date', endDate);
+            localStorage.setItem('pref_program_filter', program);
+            localStorage.setItem('pref_checked_shells', checkedShells);
         }
 
         function loadSavedFilterPreferences() {
-            const course = getCookie('pref_course_filter') || localStorage.getItem('pref_course_filter') || 'ALL';
             const dateToggle = getCookie('pref_date_toggle') || localStorage.getItem('pref_date_toggle') || '0';
             const startDate = getCookie('pref_start_date') || localStorage.getItem('pref_start_date') || '';
             const endDate = getCookie('pref_end_date') || localStorage.getItem('pref_end_date') || '';
+            const program = getCookie('pref_program_filter') || localStorage.getItem('pref_program_filter') || 'ALL';
+            const checkedShellsStr = getCookie('pref_checked_shells') || localStorage.getItem('pref_checked_shells') || '';
 
-            const courseSel = document.getElementById('course-filter-select');
-            if (courseSel && course !== 'ALL') {
-                courseSel.value = course;
+            const programSel = document.getElementById('program-filter-select');
+            if (programSel) {
+                programSel.value = program;
+                activeProgramFilter = program;
+            }
+
+            if (checkedShellsStr) {
+                _selectedCourseShells = new Set(checkedShellsStr.split(',').filter(Boolean));
+                if (_selectedCourseShells.size > 0) {
+                    _allCoursesMode = false;
+                }
             }
 
             const toggle = document.getElementById('date-filter-toggle');
@@ -982,19 +1044,17 @@
             }
         }
 
+
         document.addEventListener('DOMContentLoaded', () => {
             initExcludedModules();
             initFlatpickr();
             loadSavedFilterPreferences();
-            csInitFilter(); // Initialize course shell input filter keydown/change listeners
-            // Pre-fetch dashboard data immediately on page load (background warm-up)
+            csInitFilter();
             loadDashboardSilently();
-            // Continue refreshing every 60 seconds (1 minute) in background seamlessly without page blink
             _silentInterval = setInterval(() => {
                 loadDashboardSilently();
             }, 60000);
 
-            // Cmd+K / Ctrl+K keyboard shortcut focus
             document.addEventListener('keydown', (e) => {
                 if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
                     const searchInput = document.getElementById('learner-nav-search-input');
@@ -1013,7 +1073,13 @@
             if (btn) btn.disabled = true;
 
             try {
-                await loadDashboardSilently();
+                const res = await fetch(`/api/dashboard?force_refresh=1&t=${Date.now()}`);
+                if (res.ok) {
+                    _rawData = await res.json();
+                    applyDashboardFilters();
+                }
+            } catch (err) {
+                console.error("Manual refresh failed:", err);
             } finally {
                 setTimeout(() => {
                     if (icon) icon.classList.remove('spin');
@@ -1036,6 +1102,11 @@
             const learnerSearchNav = document.getElementById('learner-search-nav-container');
             if (learnerSearchNav) {
                 learnerSearchNav.style.display = (v === 'dashboard') ? 'flex' : 'none';
+            }
+
+            const brandActions = document.getElementById('dash-brand-actions');
+            if (brandActions) {
+                brandActions.style.display = (v === 'dashboard') ? 'flex' : 'none';
             }
 
             document.getElementById('nav-audit').className = v === 'audit'
@@ -1415,6 +1486,10 @@
                 syncCourseDropdownOptions(allCourses);
 
                 applyDashboardFilters();
+                const dashLoading = document.getElementById('dash-loading');
+                const dashContent = document.getElementById('dash-content');
+                if (dashLoading) dashLoading.classList.add('hidden');
+                if (dashContent) dashContent.classList.remove('hidden');
             } catch (e) {
                 // Silent fail
             }
@@ -1425,7 +1500,45 @@
 
         function syncCourseDropdownOptions(allowedCourses) {
             _masterAllowedCourses = allowedCourses || [];
+            if (!_allCoursesMode && _selectedCourseShells.size > 0) {
+                const validSelected = new Set();
+                _selectedCourseShells.forEach(c => {
+                    if (_masterAllowedCourses.includes(c)) validSelected.add(c);
+                });
+                _selectedCourseShells = validSelected;
+                if (_selectedCourseShells.size === 0) {
+                    _allCoursesMode = true;
+                }
+            }
             renderCourseCheckboxDropdown();
+        }
+
+        function resetAllFilters() {
+            if (typeof resetDateRangeFilter === 'function') resetDateRangeFilter();
+            _allCoursesMode = true;
+            _selectedCourseShells.clear();
+            const input = document.getElementById('course-search-input-top');
+            if (input) input.value = '';
+
+            activeProgramFilter = 'ALL';
+            const programSel = document.getElementById('program-filter-select');
+            if (programSel) programSel.value = 'ALL';
+
+            try {
+                setCookie('pref_date_toggle', '0', 30);
+                setCookie('pref_start_date', '', 30);
+                setCookie('pref_end_date', '', 30);
+                setCookie('pref_program_filter', 'ALL', 30);
+                setCookie('pref_checked_shells', '', 30);
+                localStorage.removeItem('pref_date_toggle');
+                localStorage.removeItem('pref_start_date');
+                localStorage.removeItem('pref_end_date');
+                localStorage.removeItem('pref_program_filter');
+                localStorage.removeItem('pref_checked_shells');
+            } catch(e) {}
+
+            renderCourseCheckboxDropdown();
+            applyDashboardFilters();
         }
 
         function updateCourseDropdownPosition() {
@@ -1628,19 +1741,84 @@
             return Array.from(_selectedCourseShells);
         }
 
+        let activeProgramFilter = 'ALL';
+
+        function matchesProgramFilter(prog, degCode, filterVal) {
+            if (!filterVal || filterVal === 'ALL') return true;
+            const p = (prog || '').trim().toUpperCase();
+            const d = (degCode || '').trim().toUpperCase();
+            
+            if (filterVal === 'MBA') {
+                return p === 'MBA' || (p === 'DUAL' && d === 'MBA');
+            }
+            if (filterVal === 'DBA') {
+                return p === 'DBA' || (p === 'DUAL' && d === 'DBA');
+            }
+            if (filterVal === 'DUAL') {
+                return p === 'DUAL';
+            }
+            return true;
+        }
+
+        function onProgramFilterChange(val) {
+            activeProgramFilter = val || 'ALL';
+            applyDashboardFilters();
+        }
+
         function applyDashboardFilters() {
             if (!_rawData) return;
 
             saveFilterPreferences();
 
-            let dataToRender = _rawData;
-
             const isDateFilterActive = document.getElementById('date-filter-toggle')?.checked;
             const startDateVal = document.getElementById('dash-start-date')?.value;
             const endDateVal = document.getElementById('dash-end-date')?.value;
 
-            if (isDateFilterActive && (startDateVal || endDateVal)) {
-                dataToRender = filterDataByDateRange(dataToRender, startDateVal, endDateVal);
+            const startDate = (isDateFilterActive && startDateVal) ? new Date(startDateVal + 'T00:00:00') : null;
+            const endDate = (isDateFilterActive && endDateVal) ? new Date(endDateVal + 'T23:59:59') : null;
+
+            // 1. Evaluate Date Range matching against Course Shells
+            const matchedCourseIds = new Set();
+            const matchedCourseNames = new Set();
+
+            Object.entries(_rawData.course_breakdown || {}).forEach(([cid, cm]) => {
+                const learnerDates = [];
+                (_rawData.watchlist || []).forEach(l => {
+                    if ((l.course_id === cid || l.course_name === cm.name) && l.last_act && l.last_act !== 'N/A') {
+                        const d = new Date(l.last_act);
+                        if (!isNaN(d.getTime())) learnerDates.push(d);
+                    }
+                });
+                (_rawData.top_learners || []).forEach(l => {
+                    if ((l.course_id === cid || l.course_name === cm.name) && l.last_act && l.last_act !== 'N/A') {
+                        const d = new Date(l.last_act);
+                        if (!isNaN(d.getTime())) learnerDates.push(d);
+                    }
+                });
+
+                let courseStart, courseEnd;
+                if (learnerDates.length > 0) {
+                    learnerDates.sort((a, b) => a - b);
+                    courseStart = learnerDates[0];
+                    courseEnd = new Date(courseStart.getTime() + (42 * 24 * 60 * 60 * 1000));
+                } else {
+                    courseStart = new Date('2026-07-01');
+                    courseEnd = new Date('2026-08-12');
+                }
+
+                let isMatched = true;
+                if (startDate && courseEnd < startDate) isMatched = false;
+                if (endDate && courseStart > endDate) isMatched = false;
+
+                if (isMatched) {
+                    matchedCourseIds.add(cid);
+                    matchedCourseNames.add(cm.name || cid);
+                }
+            });
+
+            // 2. Sync Course Shell Dropdown options based on Date Range
+            if (isDateFilterActive && (startDate || endDate)) {
+                syncCourseDropdownOptions(Array.from(matchedCourseNames));
             } else {
                 const allCourses = (_rawData.course_tabs && _rawData.course_tabs.length > 0)
                     ? _rawData.course_tabs
@@ -1648,30 +1826,274 @@
                 syncCourseDropdownOptions(allCourses);
             }
 
-            const selectedList = getSelectedCourseList();
+            // Update course range badge UI
             const badge = document.getElementById('course-range-badge');
+            const selectedList = getSelectedCourseList();
 
-            if (!selectedList || selectedList.length === 0) {
-                if (badge) {
-                    const numCourses = (dataToRender.kpis || {}).total_courses || 0;
-                    badge.textContent = `All Courses (${numCourses} Total) • 6-Week Duration`;
+            if (badge) {
+                if (!selectedList || selectedList.length === 0) {
+                    const totalCoursesCount = (isDateFilterActive && (startDate || endDate)) ? matchedCourseIds.size : Object.keys(_rawData.course_breakdown || {}).length;
+                    badge.textContent = `All Courses (${totalCoursesCount} Total) • 6-Week Duration`;
                     badge.className = 'badge bg-blue-500/15 text-blue-300 border border-blue-500/30 text-[10px]';
-                }
-            } else if (selectedList.length === 1) {
-                dataToRender = filterDataByCourse(dataToRender, selectedList[0]);
-                if (badge) {
-                    badge.textContent = `${selectedList[0]} (1 Course) • 6-Week Duration`;
-                    badge.className = 'badge bg-blue-500/15 text-blue-300 border border-blue-500/30 text-[10px]';
-                }
-            } else {
-                dataToRender = filterDataByMultipleCourses(dataToRender, selectedList);
-                if (badge) {
-                    badge.textContent = `${selectedList.length} Courses Selected • 6-Week Duration`;
+                } else {
+                    badge.textContent = `${selectedList.length} Course(s) Selected • 6-Week Duration`;
                     badge.className = 'badge bg-blue-500/15 text-blue-300 border border-blue-500/30 text-[10px]';
                 }
             }
 
-            renderDashboard(dataToRender);
+            // 3. Single-pass Filter on raw all_learners array
+            const selectedCourseSet = selectedList ? new Set(selectedList) : null;
+            const programVal = activeProgramFilter || 'ALL';
+
+            const filteredLearners = (_rawData.all_learners || []).filter(l => {
+                // a) Date Range course shell match
+                if (isDateFilterActive && (startDate || endDate)) {
+                    if (!matchedCourseIds.has(l.course_id) && !matchedCourseNames.has(l.course_name)) {
+                        return false;
+                    }
+                }
+                // b) Course Shell filter match
+                if (selectedCourseSet) {
+                    if (!selectedCourseSet.has(l.course_id) && !selectedCourseSet.has(l.course_name)) {
+                        return false;
+                    }
+                }
+                // c) Program / Degree Code filter match
+                if (programVal !== 'ALL') {
+                    if (!matchesProgramFilter(l.program, l.degree_code, programVal)) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+
+            // Helper to get time in seconds from any learner object
+            function getLearnerSeconds(l) {
+                if (typeof l.time_seconds === 'number' && l.time_seconds > 0) return l.time_seconds;
+                if (l.time_hms && typeof l.time_hms === 'string') {
+                    const parts = l.time_hms.split(':').map(Number);
+                    if (parts.length === 3 && !parts.some(isNaN)) {
+                        return parts[0] * 3600 + parts[1] * 60 + parts[2];
+                    }
+                    if (parts.length === 2 && !parts.some(isNaN)) {
+                        return parts[0] * 60 + parts[1];
+                    }
+                }
+                if (l.time_spent) {
+                    const match = String(l.time_spent).match(/([\d.]+)\s*hr/i);
+                    if (match) return parseFloat(match[1]) * 3600;
+                    const minMatch = String(l.time_spent).match(/([\d.]+)\s*min/i);
+                    if (minMatch) return parseFloat(minMatch[1]) * 60;
+                }
+                return 0;
+            }
+
+            // 4. Compute all Dashboard Data structures from filteredLearners
+            let activeCount = 0, missedCount = 0, inactiveCount = 0;
+            let totalMissing = 0, totalSubmitted = 0, totalTimeSec = 0, validTimeCount = 0;
+            let mbaTotal = 0, dbaTotal = 0;
+            let mbaActive = 0, dbaActive = 0;
+            let mbaMissed = 0, dbaMissed = 0;
+            let mbaInactive = 0, dbaInactive = 0;
+            let mbaTimeSec = 0, dbaTimeSec = 0;
+
+            const catCounts = {};
+            const courseMap = {};
+            const cohortMap = {};
+            const weeklyAgg = {};
+            const activeCourseIdSet = new Set();
+
+            filteredLearners.forEach(l => {
+                const p = (l.program || '').trim().toUpperCase();
+                const d = (l.degree_code || '').trim().toUpperCase();
+                const isMBA = p === 'MBA' || (p === 'DUAL' && d === 'MBA');
+                const isDBA = p === 'DBA' || (p === 'DUAL' && d === 'DBA');
+
+                if (isMBA) {
+                    mbaTotal++;
+                    if (l.overall === 'Active') mbaActive++;
+                    else mbaInactive++;
+                    if (l.category === 'MISSED SUBMISSION') mbaMissed++;
+                }
+                if (isDBA) {
+                    dbaTotal++;
+                    if (l.overall === 'Active') dbaActive++;
+                    else dbaInactive++;
+                    if (l.category === 'MISSED SUBMISSION') dbaMissed++;
+                }
+
+                if (l.overall === 'Active') activeCount++;
+                else inactiveCount++;
+
+                if (l.category === 'MISSED SUBMISSION') missedCount++;
+                catCounts[l.category] = (catCounts[l.category] || 0) + 1;
+
+                totalMissing += (l.missing || 0);
+                totalSubmitted += (l.submitted || 0);
+
+                const sec = getLearnerSeconds(l);
+                totalTimeSec += sec;
+                if (sec > 0) validTimeCount++;
+
+                if (isMBA) mbaTimeSec += sec;
+                if (isDBA) dbaTimeSec += sec;
+
+                const cid = l.course_id || 'UNKNOWN';
+                activeCourseIdSet.add(cid);
+
+                if (!courseMap[cid]) {
+                    courseMap[cid] = {
+                        course_id: cid,
+                        name: l.course_name || cid,
+                        active: 0,
+                        inactive: 0,
+                        missed_submissions: 0,
+                        total: 0,
+                        missing: 0,
+                        submitted: 0,
+                        expected_asgn_per_learner: l.total_asgn || 0,
+                        _total_time_s: 0,
+                        avg_time_hours: 0,
+                        health_pct: 0
+                    };
+                }
+                const cm = courseMap[cid];
+                cm.total++;
+                cm.missing += (l.missing || 0);
+                cm.submitted += (l.submitted || 0);
+                cm._total_time_s += sec;
+                if (l.total_asgn && l.total_asgn > cm.expected_asgn_per_learner) {
+                    cm.expected_asgn_per_learner = l.total_asgn;
+                }
+                if (l.overall === 'Active') cm.active++;
+                else cm.inactive++;
+                if (l.category === 'MISSED SUBMISSION') cm.missed_submissions++;
+
+                const coh = (l.cohort || 'N/A').trim();
+                if (!cohortMap[coh]) {
+                    cohortMap[coh] = {
+                        name: coh,
+                        active: 0,
+                        inactive: 0,
+                        missed_submissions: 0,
+                        total: 0,
+                        missing: 0,
+                        avg_time_hours: 0,
+                        _total_time_s: 0
+                    };
+                }
+                const cohObj = cohortMap[coh];
+                cohObj.total++;
+                cohObj.missing += (l.missing || 0);
+                cohObj._total_time_s += sec;
+                if (l.overall === 'Active') cohObj.active++;
+                else cohObj.inactive++;
+                if (l.category === 'MISSED SUBMISSION') cohObj.missed_submissions++;
+
+                // Weekly Aggregation (supports 'MET', 'NOT MET', and '-' fallback)
+                const wObj = l.weekly || {};
+                const catUpper = String(l.category || '').toUpperCase();
+                const overallUpper = String(l.overall || '').toUpperCase();
+                const comp = l.submitted || 0;
+                const tot = l.total_asgn || 0;
+
+                for (let wi = 1; wi <= 6; wi++) {
+                    let wVal = String(wObj[wi] || wObj[String(wi)] || '-').trim().toUpperCase();
+                    if (wVal !== 'MET' && wVal !== 'NOT MET') {
+                        const targetAsgn = tot > 0 ? Math.round(tot * (wi / 6.0)) : 0;
+                        if (catUpper.includes('ACTIVE') || overallUpper === 'ACTIVE') {
+                            if (comp >= targetAsgn || (wi <= 4 && sec > 3600)) wVal = 'MET';
+                            else wVal = 'NOT MET';
+                        } else if (catUpper.includes('MISSED')) {
+                            if (comp >= targetAsgn) wVal = 'MET';
+                            else wVal = 'NOT MET';
+                        } else {
+                            if (wi === 1 && (comp > 0 || sec > 1800)) wVal = 'MET';
+                            else wVal = 'NOT MET';
+                        }
+                    }
+
+                    if (!weeklyAgg[wi]) {
+                        weeklyAgg[wi] = { week: wi, met: 0, not_met: 0, total: 0, met_pct: 0 };
+                    }
+                    if (wVal === 'MET') {
+                        weeklyAgg[wi].met++;
+                        weeklyAgg[wi].total++;
+                    } else {
+                        weeklyAgg[wi].not_met++;
+                        weeklyAgg[wi].total++;
+                    }
+                }
+            });
+
+            // Calculate health % and avg time for courses
+            Object.values(courseMap).forEach(c => {
+                c.avg_time_hours = c.total > 0 ? Math.round((c._total_time_s / c.total / 3600) * 100) / 100 : 0;
+                const totalExpected = c.total * c.expected_asgn_per_learner;
+                c.total_asgn = totalExpected > 0 ? totalExpected : c.total_asgn;
+                if (totalExpected > 0) {
+                    c.health_pct = Math.round(Math.min(100, (c.submitted / totalExpected) * 100) * 10) / 10;
+                } else if (c.total > 0) {
+                    c.health_pct = Math.round((c.active / c.total) * 100 * 10) / 10;
+                } else {
+                    c.health_pct = 0;
+                }
+                delete c._total_time_s;
+            });
+
+            // Calculate cohort average hours
+            Object.values(cohortMap).forEach(c => {
+                c.avg_time_hours = c.total > 0 ? Math.round((c._total_time_s / c.total / 3600) * 100) / 100 : 0;
+                delete c._total_time_s;
+            });
+
+            // Calculate Weekly Summary
+            const weeklySummary = Object.values(weeklyAgg).map(wa => ({
+                ...wa,
+                met_pct: wa.total > 0 ? Math.round((wa.met / wa.total) * 1000) / 10 : 0
+            })).sort((a, b) => a.week - b.week);
+
+            const totalLearners = activeCount + inactiveCount;
+            const avgTimeHours = totalLearners ? Math.round((totalTimeSec / totalLearners / 3600) * 100) / 100 : 0;
+            const mbaAvgTimeHours = mbaTotal ? Math.round((mbaTimeSec / mbaTotal / 3600) * 100) / 100 : 0;
+            const dbaAvgTimeHours = dbaTotal ? Math.round((dbaTimeSec / dbaTotal / 3600) * 100) / 100 : 0;
+            const engRatio = totalLearners ? Math.round((activeCount / totalLearners) * 1000) / 10 : 0;
+
+            const filteredWatchlist = filteredLearners.filter(l => l.overall !== 'Active');
+            const filteredTop = [...filteredLearners].sort((a, b) => (getLearnerSeconds(b) - getLearnerSeconds(a)) || ((b.submitted || 0) - (a.submitted || 0)));
+
+            const finalDashboardData = {
+                ..._rawData,
+                kpis: {
+                    total_courses: activeCourseIdSet.size,
+                    total_learners: totalLearners,
+                    active_learners: activeCount,
+                    missed_submission_learners: missedCount,
+                    inactive_learners: inactiveCount,
+                    total_missing: totalMissing,
+                    total_submitted: totalSubmitted,
+                    avg_time_hours: avgTimeHours,
+                    engagement_ratio: engRatio,
+                    mba_total: mbaTotal,
+                    dba_total: dbaTotal,
+                    mba_active: mbaActive,
+                    dba_active: dbaActive,
+                    mba_missed: mbaMissed,
+                    dba_missed: dbaMissed,
+                    mba_inactive: mbaInactive,
+                    dba_inactive: dbaInactive,
+                    mba_avg_time: mbaAvgTimeHours,
+                    dba_avg_time: dbaAvgTimeHours
+                },
+                cat_counts: catCounts,
+                weekly_summary: weeklySummary,
+                course_breakdown: courseMap,
+                cohort_breakdown: cohortMap,
+                top_learners: filteredTop,
+                watchlist: filteredWatchlist
+            };
+
+            renderDashboard(finalDashboardData);
         }
 
         function filterDataByMultipleCourses(data, courseIds) {
@@ -2045,6 +2467,26 @@
             document.getElementById('kpi-inactive').textContent = k.inactive_learners ?? '--';
             document.getElementById('kpi-time').textContent = k.avg_time_hours ?? '--';
 
+            const setTxt = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = val;
+            };
+
+            setTxt('kpi-total-mba', k.mba_total ?? 0);
+            setTxt('kpi-total-dba', k.dba_total ?? 0);
+
+            setTxt('kpi-active-mba', k.mba_active ?? 0);
+            setTxt('kpi-active-dba', k.dba_active ?? 0);
+
+            setTxt('kpi-missed-mba', k.mba_missed ?? 0);
+            setTxt('kpi-missed-dba', k.dba_missed ?? 0);
+
+            setTxt('kpi-inactive-mba', k.mba_inactive ?? 0);
+            setTxt('kpi-inactive-dba', k.dba_inactive ?? 0);
+
+            setTxt('kpi-time-mba', (k.mba_avg_time ?? 0) + 'h');
+            setTxt('kpi-time-dba', (k.dba_avg_time ?? 0) + 'h');
+
             renderWeeklyTracker(data);
             renderEngagementCategories(data);
             renderCoursePerformanceTable(data.course_breakdown || {});
@@ -2121,9 +2563,15 @@
             if (!tbody) return;
             tbody.innerHTML = '';
 
+            const entries = Object.entries(courseMap);
+            if (entries.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-white/40 text-xs italic">No course shells match the active filters.</td></tr>`;
+                return;
+            }
+
             const searchVal = (document.getElementById('course-search-input')?.value || '').toLowerCase();
 
-            Object.entries(courseMap).forEach(([cid, cm]) => {
+            entries.forEach(([cid, cm]) => {
                 const cname = cm.name || cid;
                 if (searchVal && !cid.toLowerCase().includes(searchVal) && !cname.toLowerCase().includes(searchVal)) {
                     return;
@@ -2145,6 +2593,7 @@
                     <td class="py-2.5 px-3 text-center text-emerald-400 font-mono font-bold">${cm.active}</td>
                     <td class="py-2.5 px-3 text-center font-mono ${cm.inactive > 0 ? 'text-red-400 font-bold' : 'text-white/40'}">${cm.inactive}</td>
                     <td class="py-2.5 px-3 text-center text-amber-400 font-mono">${cm.missed_submissions || 0}</td>
+                    <td class="py-2.5 px-3 text-center text-white/70 font-mono font-semibold">${cm.avg_time_hours || 0} hrs</td>
                     <td class="py-2.5 px-3 text-center">
                         <div class="flex items-center gap-2">
                             <div class="flex-grow progress-bar"><div class="progress-fill" style="width:${healthPct}%;background:${healthColor}"></div></div>
@@ -2174,6 +2623,13 @@
                 return !searchVal || l.learner_name.toLowerCase().includes(searchVal) || (l.email || '').toLowerCase().includes(searchVal);
             });
 
+            if (filtered.length === 0) {
+                if (countText) countText.textContent = `Showing 0 learners`;
+                if (paginationDiv) paginationDiv.innerHTML = '';
+                tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-white/40 text-xs italic">No learners match the active filters.</td></tr>`;
+                return;
+            }
+
             const totalPages = Math.ceil(filtered.length / leaderboardPageSize) || 1;
             if (leaderboardCurrentPage > totalPages) leaderboardCurrentPage = totalPages;
 
@@ -2182,20 +2638,26 @@
 
             if (countText) countText.textContent = `Showing ${filtered.length > 0 ? startIdx + 1 : 0}-${endIdx} of ${filtered.length} learners (>10m spent)`;
 
-            // Render Numbered Page & Arrow Buttons
+            // Render Numbered Page & Arrow Buttons (Max 5 page window to prevent overflow)
             if (paginationDiv) {
                 let phtml = '';
                 if (totalPages > 1) {
-                    const prevDisabled = leaderboardCurrentPage === 1 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white/20 cursor-pointer';
-                    phtml += `<button onclick="if(${leaderboardCurrentPage} > 1) setLeaderboardPage(${leaderboardCurrentPage - 1})" class="px-2.5 py-1 bg-white/10 text-white text-[11px] rounded-lg transition-all ${prevDisabled}">‹ Prev</button>`;
+                    const prevDisabled = leaderboardCurrentPage === 1 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-blue-600/40 hover:text-white cursor-pointer';
+                    phtml += `<button type="button" onclick="changeLeaderboardPage(-1)" ${leaderboardCurrentPage === 1 ? 'disabled' : ''} class="px-2.5 py-1 bg-white/10 text-white text-[11px] font-medium rounded-lg transition-all ${prevDisabled}">‹ Prev</button>`;
 
-                    for (let p = 1; p <= totalPages; p++) {
-                        const activeCls = p === leaderboardCurrentPage ? 'bg-blue-600 text-white font-bold' : 'bg-white/10 hover:bg-white/20 text-white/60';
-                        phtml += `<button onclick="setLeaderboardPage(${p})" class="px-2.5 py-1 text-[11px] rounded-lg transition-all ${activeCls}">${p}</button>`;
+                    let startP = Math.max(1, leaderboardCurrentPage - 2);
+                    let endP = Math.min(totalPages, startP + 4);
+                    if (endP - startP < 4) {
+                        startP = Math.max(1, endP - 4);
                     }
 
-                    const nextDisabled = leaderboardCurrentPage === totalPages ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white/20 cursor-pointer';
-                    phtml += `<button onclick="if(${leaderboardCurrentPage} < ${totalPages}) setLeaderboardPage(${leaderboardCurrentPage + 1})" class="px-2.5 py-1 bg-white/10 text-white text-[11px] rounded-lg transition-all ${nextDisabled}">Next ›</button>`;
+                    for (let p = startP; p <= endP; p++) {
+                        const activeCls = p === leaderboardCurrentPage ? 'bg-blue-600 text-white font-bold shadow-md' : 'bg-white/10 hover:bg-white/20 text-white/60 cursor-pointer';
+                        phtml += `<button type="button" onclick="setLeaderboardPage(${p})" class="px-2.5 py-1 text-[11px] font-mono rounded-lg transition-all ${activeCls}">${p}</button>`;
+                    }
+
+                    const nextDisabled = leaderboardCurrentPage === totalPages ? 'opacity-30 cursor-not-allowed' : 'hover:bg-blue-600/40 hover:text-white cursor-pointer';
+                    phtml += `<button type="button" onclick="changeLeaderboardPage(1)" ${leaderboardCurrentPage === totalPages ? 'disabled' : ''} class="px-2.5 py-1 bg-white/10 text-white text-[11px] font-medium rounded-lg transition-all ${nextDisabled}">Next ›</button>`;
                 }
                 paginationDiv.innerHTML = phtml;
             }
@@ -2203,12 +2665,17 @@
             const paged = filtered.slice(startIdx, endIdx);
             paged.forEach((l, i) => {
                 const key = (l.email || l.learner_name).toLowerCase();
+                const progBadge = (l.program && l.program !== 'Not Found in Sheet')
+                    ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 font-mono">${l.program}${l.degree_code && l.degree_code !== 'Not Found in Sheet' ? ' (' + l.degree_code + ')' : ''}</span>`
+                    : `<span class="text-white/30 text-[10px] font-mono">N/A</span>`;
+
                 tbody.innerHTML += `<tr class="table-row cursor-pointer" onclick="openLearnerModal('${key}')">
                     <td class="py-2.5 px-3 text-center text-white/30 font-mono">${startIdx + i + 1}</td>
                     <td class="py-2.5 px-3">
                         <div class="text-white/90 font-medium hover:text-blue-400 transition-colors">${l.learner_name}</div>
                     </td>
                     <td class="py-2.5 px-3 text-white/50 text-[10px] font-mono">${l.email || '-'}</td>
+                    <td class="py-2.5 px-3 text-center">${progBadge}</td>
                     <td class="py-2.5 px-3 text-white/70 font-mono text-[10px] truncate max-w-[140px]">${l.course_name}</td>
                     <td class="py-2.5 px-3 text-center font-mono text-white/90 font-bold">${l.time_hms || '--'}</td>
                     <td class="py-2.5 px-3 text-center text-blue-400 font-mono">${l.submitted} / ${l.total_asgn}</td>
@@ -2216,14 +2683,28 @@
             });
         }
 
+        function changeLeaderboardPage(delta) {
+            const topList = (_lastFilteredData && _lastFilteredData.top_learners) ? _lastFilteredData.top_learners : (_rawData ? _rawData.top_learners || [] : []);
+            const searchVal = (document.getElementById('leaderboard-search-input')?.value || '').toLowerCase();
+            const filtered = topList.filter(l => !searchVal || l.learner_name.toLowerCase().includes(searchVal) || (l.email || '').toLowerCase().includes(searchVal));
+            const totalPages = Math.ceil(filtered.length / leaderboardPageSize) || 1;
+            const targetPage = leaderboardCurrentPage + delta;
+            if (targetPage >= 1 && targetPage <= totalPages) {
+                leaderboardCurrentPage = targetPage;
+                renderLeaderboardTable(topList);
+            }
+        }
+
         function setLeaderboardPage(p) {
             leaderboardCurrentPage = p;
-            if (_rawData) renderLeaderboardTable(_rawData.top_learners || []);
+            const topList = (_lastFilteredData && _lastFilteredData.top_learners) ? _lastFilteredData.top_learners : (_rawData ? _rawData.top_learners || [] : []);
+            renderLeaderboardTable(topList);
         }
 
         function filterLeaderboardTable() {
             leaderboardCurrentPage = 1;
-            if (_rawData) renderLeaderboardTable(_rawData.top_learners || []);
+            const topList = (_lastFilteredData && _lastFilteredData.top_learners) ? _lastFilteredData.top_learners : (_rawData ? _rawData.top_learners || [] : []);
+            renderLeaderboardTable(topList);
         }
 
         function renderCohortTable(cohortMap) {
@@ -2231,7 +2712,13 @@
             if (!tbody) return;
             tbody.innerHTML = '';
 
-            Object.entries(cohortMap).forEach(([cname, cinfo]) => {
+            const entries = Object.entries(cohortMap);
+            if (entries.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-white/40 text-xs italic">No cohort data matches the active filters.</td></tr>`;
+                return;
+            }
+
+            entries.forEach(([cname, cinfo]) => {
                 tbody.innerHTML += `<tr class="table-row">
                     <td class="py-2.5 px-3 text-white/90 font-medium">${cinfo.name}</td>
                     <td class="py-2.5 px-3 text-center text-white/80 font-mono">${cinfo.total}</td>
@@ -2322,6 +2809,288 @@
 
         function closeLearnerModal() {
             document.getElementById('learner-modal').classList.add('hidden');
+        }
+
+        async function downloadDashboardPDF() {
+            if (!_rawData) {
+                alert("Please load or refresh dashboard data before exporting PDF.");
+                return;
+            }
+
+            const btn = document.getElementById('download-pdf-btn');
+            const btnText = document.getElementById('download-pdf-text');
+            const btnIcon = document.getElementById('download-pdf-icon');
+            const btnSpin = document.getElementById('download-pdf-spin');
+
+            if (btn) btn.disabled = true;
+            if (btnIcon) btnIcon.classList.add('hidden');
+            if (btnSpin) btnSpin.classList.remove('hidden');
+            if (btnText) btnText.textContent = "Generating PDF...";
+
+            try {
+                const brandTitleEl = document.querySelector('header span.shiny-text');
+                const programTitle = brandTitleEl ? brandTitleEl.textContent.trim() : 'Edgewood Analytics';
+                
+                const dateToggle = document.getElementById('date-filter-toggle');
+                const isDateFiltered = dateToggle && dateToggle.checked;
+                const startDateVal = document.getElementById('dash-start-date')?.value || '';
+                const endDateVal = document.getElementById('dash-end-date')?.value || '';
+                const dateFilterSummary = isDateFiltered && startDateVal && endDateVal 
+                    ? `${startDateVal} to ${endDateVal}` 
+                    : 'All Time (No date filter applied)';
+
+                const courseSearchInput = document.getElementById('course-search-input-top');
+                const activeCourseSearch = courseSearchInput ? courseSearchInput.value.trim() : '';
+                const checkedShells = Array.from(document.querySelectorAll('#cs-checkbox-dropdown input[type="checkbox"]:checked'))
+                    .map(cb => cb.value);
+                const courseFilterSummary = checkedShells.length > 0 
+                    ? checkedShells.map(s => `<span style="display: inline-block; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 2px 7px; border-radius: 4px; font-size: 9.5px; font-weight: 700; margin: 2px 4px 2px 0; white-space: nowrap; line-height: 1.4;">${s}</span>`).join(' ')
+                    : (activeCourseSearch ? `<span style="font-weight:700;color:#1d4ed8;">Search Filter: "${activeCourseSearch}"</span>` : 'All Course Shells');
+
+                const programSelect = document.getElementById('program-filter-select');
+                const programFilterSummary = programSelect ? programSelect.options[programSelect.selectedIndex]?.text : 'All Programs';
+
+                const excludedVal = document.getElementById('excluded-modules-input')?.value || '';
+                const excludedSummary = excludedVal ? excludedVal : 'None';
+
+                const kpiCourses = document.getElementById('kpi-courses')?.textContent || '--';
+                const kpiTotal = document.getElementById('kpi-total')?.textContent || '--';
+                const kpiActive = document.getElementById('kpi-active')?.textContent || '--';
+                const kpiMissed = document.getElementById('kpi-missed')?.textContent || '--';
+                const kpiInactive = document.getElementById('kpi-inactive')?.textContent || '--';
+                const kpiTime = document.getElementById('kpi-time')?.textContent || '--';
+
+                const courseTableEl = document.querySelector('#sec-course-performance table');
+                const leaderboardTableEl = document.querySelector('#sec-leaderboard table');
+                const cohortTableEl = document.querySelector('#sec-cohort table');
+
+                function getSanitizedTableHTML(originalTable, maxRows = null) {
+                    if (!originalTable) return '<p style="font-size:11px;color:#64748b;font-style:italic;">No table data available.</p>';
+                    const clone = originalTable.cloneNode(true);
+                    clone.className = "pdf-table";
+                    clone.classList.remove('hidden');
+                    clone.style.display = 'table';
+                    clone.style.width = '100%';
+                    clone.style.tableLayout = 'fixed';
+
+                    clone.querySelectorAll('tr, th, td, div, span, p').forEach(el => {
+                        el.style.backgroundColor = 'transparent';
+                        el.style.color = 'inherit';
+                        el.style.borderColor = '#cbd5e1';
+                        el.style.boxShadow = 'none';
+                        el.style.width = '';
+                        el.style.minWidth = '';
+                        el.style.maxWidth = '';
+                        el.style.whiteSpace = 'normal';
+                        el.style.wordBreak = 'break-word';
+                        el.style.overflowWrap = 'anywhere';
+                    });
+                    if (maxRows !== null) {
+                        const tbody = clone.querySelector('tbody');
+                        if (tbody) {
+                            const rows = Array.from(tbody.querySelectorAll('tr'));
+                            tbody.innerHTML = '';
+                            rows.slice(0, maxRows).forEach(r => tbody.appendChild(r));
+                        }
+                    }
+                    return clone.outerHTML;
+                }
+
+                const weeklyTrackerHTML = document.getElementById('weekly-tracker') ? document.getElementById('weekly-tracker').innerHTML : '';
+                const catBreakdownHTML = document.getElementById('cat-breakdown') ? document.getElementById('cat-breakdown').innerHTML : '';
+
+                const overlay = document.createElement('div');
+                overlay.id = 'pdf-render-overlay';
+                overlay.style.position = 'fixed';
+                overlay.style.inset = '0';
+                overlay.style.zIndex = '999999';
+                overlay.style.backgroundColor = 'rgba(0,0,0,0.85)';
+                overlay.style.backdropFilter = 'blur(8px)';
+                overlay.style.display = 'flex';
+                overlay.style.flexDirection = 'column';
+                overlay.style.alignItems = 'center';
+                overlay.style.justifyContent = 'flex-start';
+                overlay.style.overflowY = 'auto';
+                overlay.style.padding = '30px 10px';
+
+                const statusMsg = document.createElement('div');
+                statusMsg.style.color = '#ffffff';
+                statusMsg.style.fontSize = '14px';
+                statusMsg.style.fontWeight = '700';
+                statusMsg.style.marginBottom = '15px';
+                statusMsg.style.fontFamily = 'sans-serif';
+                statusMsg.textContent = '📄 Preparing PDF Report, please wait...';
+                overlay.appendChild(statusMsg);
+
+                const container = document.createElement('div');
+                container.style.width = '1000px';
+                container.style.backgroundColor = '#ffffff';
+                container.style.color = '#0f172a';
+                container.style.fontFamily = "'Inter', -apple-system, sans-serif";
+                container.style.fontSize = '11px';
+                container.style.padding = '25px';
+                container.style.borderRadius = '8px';
+                container.style.boxShadow = '0 20px 50px rgba(0,0,0,0.5)';
+
+                container.innerHTML = `
+                    <style>
+                        .pdf-header { border-bottom: 2px solid #2563eb; padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-end; }
+                        .pdf-title { font-size: 22px; font-weight: 800; color: #0f172a; margin: 0; }
+                        .pdf-subtitle { font-size: 12px; color: #475569; font-weight: 500; margin-top: 3px; }
+                        .pdf-meta { font-size: 11px; color: #64748b; text-align: right; line-height: 1.4; }
+                        
+                        .pdf-filter-box { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 16px; margin-bottom: 18px; }
+                        .pdf-filter-title { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #334155; letter-spacing: 0.5px; margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+
+                        .pdf-kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 20px; }
+                        .pdf-kpi-card { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; text-align: center; }
+                        .pdf-kpi-label { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 2px; }
+                        .pdf-kpi-value { font-size: 16px; font-weight: 900; color: #0f172a; }
+                        .pdf-kpi-value.active { color: #059669; }
+                        .pdf-kpi-value.missed { color: #d97706; }
+                        .pdf-kpi-value.inactive { color: #dc2626; }
+
+                        .pdf-tracker-layout { display: flex; gap: 15px; margin-bottom: 22px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; }
+                        .pdf-tracker-left { flex: 1; }
+                        .pdf-tracker-right { width: 280px; border-left: 1px solid #e2e8f0; padding-left: 12px; }
+                        .pdf-tracker-heading { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #334155; margin-bottom: 8px; letter-spacing: 0.5px; }
+
+                        .pdf-section { margin-bottom: 22px; }
+                        .pdf-section-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #0f172a; padding-bottom: 4px; margin-bottom: 10px; }
+                        .pdf-section-title { font-size: 13px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px; }
+                        .pdf-section-tag { font-size: 10px; font-weight: 700; color: #2563eb; background: #eff6ff; padding: 2px 8px; border-radius: 4px; border: 1px solid #bfdbfe; }
+                        
+                        .pdf-table { width: 100% !important; border-collapse: collapse; margin-top: 6px; font-size: 9.5px; table-layout: fixed !important; display: table !important; }
+                        .pdf-table th { background: #0f172a !important; color: #ffffff !important; padding: 7px 8px; text-align: left; font-weight: 700; font-size: 9px; text-transform: uppercase; word-break: break-word; overflow-wrap: anywhere; }
+                        .pdf-table td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; color: #0f172a; word-break: break-word; overflow-wrap: anywhere; vertical-align: top; }
+                        .pdf-table tr:nth-child(even) td { background-color: #f8fafc; }
+
+                        .pdf-tracker-layout * { color: #0f172a !important; word-break: break-word; }
+                    </style>
+
+                    <div class="pdf-header">
+                        <div>
+                            <div class="pdf-title">${programTitle}</div>
+                            <div class="pdf-subtitle">Inactive Learner & Engagement Analytics Executive Report</div>
+                        </div>
+                        <div class="pdf-meta">
+                            <div><strong>Generated:</strong> ${new Date().toLocaleString()}</div>
+                            <div><strong>Source:</strong> Canvas LMS Sync</div>
+                        </div>
+                    </div>
+
+                    <div class="pdf-filter-box">
+                        <div class="pdf-filter-title">Active Applied Filters</div>
+                        <table style="width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11px;">
+                            <tr>
+                                <td style="width: 150px; font-weight: 700; color: #475569; font-size: 10px; text-transform: uppercase; padding: 4px 0; vertical-align: top; border: none;">Date Range Filter:</td>
+                                <td style="font-weight: 600; color: #0f172a; padding: 4px 0; vertical-align: top; border: none; line-height: 1.6; word-break: break-word;">${dateFilterSummary}</td>
+                            </tr>
+                            <tr>
+                                <td style="width: 150px; font-weight: 700; color: #475569; font-size: 10px; text-transform: uppercase; padding: 4px 0; vertical-align: top; border: none;">Course Shell(s):</td>
+                                <td style="font-weight: 600; color: #0f172a; padding: 4px 0; vertical-align: top; border: none; line-height: 1.8;">${courseFilterSummary}</td>
+                            </tr>
+                            <tr>
+                                <td style="width: 150px; font-weight: 700; color: #475569; font-size: 10px; text-transform: uppercase; padding: 4px 0; vertical-align: top; border: none;">Program / Degree Filter:</td>
+                                <td style="font-weight: 600; color: #0f172a; padding: 4px 0; vertical-align: top; border: none; line-height: 1.6; word-break: break-word;">${programFilterSummary}</td>
+                            </tr>
+                            <tr>
+                                <td style="width: 150px; font-weight: 700; color: #475569; font-size: 10px; text-transform: uppercase; padding: 4px 0; vertical-align: top; border: none;">Excluded Assessments:</td>
+                                <td style="font-weight: 600; color: #0f172a; padding: 4px 0; vertical-align: top; border: none; line-height: 1.6; word-break: break-word;">${excludedSummary}</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div class="pdf-kpi-grid">
+                        <div class="pdf-kpi-card">
+                            <div class="pdf-kpi-label">Courses</div>
+                            <div class="pdf-kpi-value">${kpiCourses}</div>
+                        </div>
+                        <div class="pdf-kpi-card">
+                            <div class="pdf-kpi-label">Total Learners</div>
+                            <div class="pdf-kpi-value">${kpiTotal}</div>
+                        </div>
+                        <div class="pdf-kpi-card">
+                            <div class="pdf-kpi-label">Active Learners</div>
+                            <div class="pdf-kpi-value active">${kpiActive}</div>
+                        </div>
+                        <div class="pdf-kpi-card">
+                            <div class="pdf-kpi-label">Missed Subs</div>
+                            <div class="pdf-kpi-value missed">${kpiMissed}</div>
+                        </div>
+                        <div class="pdf-kpi-card">
+                            <div class="pdf-kpi-label">Inactive</div>
+                            <div class="pdf-kpi-value inactive">${kpiInactive}</div>
+                        </div>
+                        <div class="pdf-kpi-card">
+                            <div class="pdf-kpi-label">Avg Time</div>
+                            <div class="pdf-kpi-value">${kpiTime} hrs</div>
+                        </div>
+                    </div>
+
+                    <div class="pdf-tracker-layout">
+                        <div class="pdf-tracker-left">
+                            <div class="pdf-tracker-heading">Weekly Engagement Tracker</div>
+                            <div>${weeklyTrackerHTML}</div>
+                        </div>
+                        <div class="pdf-tracker-right">
+                            <div class="pdf-tracker-heading">Engagement Categories</div>
+                            <div>${catBreakdownHTML}</div>
+                        </div>
+                    </div>
+
+                    <div class="pdf-section">
+                        <div class="pdf-section-header">
+                            <div class="pdf-section-title">1. Course Performance Analysis</div>
+                            <div class="pdf-section-tag">All Course Shells</div>
+                        </div>
+                        ${getSanitizedTableHTML(courseTableEl)}
+                    </div>
+
+                    <div class="pdf-section" style="page-break-before: always;">
+                        <div class="pdf-section-header">
+                            <div class="pdf-section-title">2. Content Consumption Leaderboard</div>
+                            <div class="pdf-section-tag">Top 10 Learners</div>
+                        </div>
+                        ${getSanitizedTableHTML(leaderboardTableEl, 10)}
+                    </div>
+
+                    <div class="pdf-section">
+                        <div class="pdf-section-header">
+                            <div class="pdf-section-title">3. Cohort Performance Analysis</div>
+                            <div class="pdf-section-tag">Top 10 Cohorts</div>
+                        </div>
+                        ${getSanitizedTableHTML(cohortTableEl, 10)}
+                    </div>
+                `;
+
+                overlay.appendChild(container);
+                document.body.appendChild(overlay);
+
+                await new Promise(resolve => setTimeout(resolve, 300));
+
+                const opt = {
+                    margin: [6, 6, 6, 6],
+                    filename: `${programTitle.replace(/[^a-zA-Z0-9]/g, '_')}_Dashboard_Report.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2, useCORS: true, logging: false },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+                    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+                };
+
+                await html2pdf().set(opt).from(container).save();
+                document.body.removeChild(overlay);
+            } catch (err) {
+                console.error("PDF generation error:", err);
+                alert("Failed to generate PDF report: " + err.message);
+                const existingOverlay = document.getElementById('pdf-render-overlay');
+                if (existingOverlay) document.body.removeChild(existingOverlay);
+            } finally {
+                if (btn) btn.disabled = false;
+                if (btnIcon) btnIcon.classList.remove('hidden');
+                if (btnSpin) btnSpin.classList.add('hidden');
+                if (btnText) btnText.textContent = "Download PDF";
+            }
         }
     </script>
 </body>

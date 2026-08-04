@@ -104,6 +104,81 @@ def get_google_client():
     return gspread.Client(auth=creds)
 
 
+_LEARNER_PROGRAM_CACHE = None
+_LEARNER_CACHE_TIME = 0
+
+def get_learner_program_map(force_refresh=False):
+    global _LEARNER_PROGRAM_CACHE, _LEARNER_CACHE_TIME
+    now = datetime.datetime.now().timestamp()
+    if not force_refresh and _LEARNER_PROGRAM_CACHE is not None and (now - _LEARNER_CACHE_TIME) < 600:
+        return _LEARNER_PROGRAM_CACHE
+
+    program_map = {}
+    try:
+        doc_id = "1Q68vf9v--dS9_X7uRbgzZ30XzWtNGgYqMUWhPOF_sLc"
+        gc = get_google_client()
+        sh = gc.open_by_key(doc_id)
+        
+        ws = None
+        for title in ["EdgeWood_Learner Data", "Edgewood_Learner Data", "Learner Data"]:
+            try:
+                ws = sh.worksheet(title)
+                break
+            except Exception:
+                pass
+        if not ws:
+            ws = sh.sheet1
+        
+        rows = ws.get_all_values()
+        if len(rows) > 1:
+            header = [c.strip().lower() for c in rows[0]]
+            email_idx = 0
+            prog_idx = 1
+            deg_idx = 2
+            
+            for h_i, h_name in enumerate(header):
+                if "email" in h_name:
+                    email_idx = h_i
+                elif "program" in h_name:
+                    prog_idx = h_i
+                elif "degree" in h_name:
+                    deg_idx = h_i
+            
+            for r in rows[1:]:
+                if not r or len(r) <= email_idx:
+                    continue
+                email = r[email_idx].strip().lower()
+                if not email:
+                    continue
+                prog = r[prog_idx].strip() if len(r) > prog_idx and r[prog_idx].strip() else "Not Found in Sheet"
+                deg = r[deg_idx].strip() if len(r) > deg_idx and r[deg_idx].strip() else "Not Found in Sheet"
+                
+                program_map[email] = {
+                    "program": prog,
+                    "degree_code": deg
+                }
+        _LEARNER_PROGRAM_CACHE = program_map
+        _LEARNER_CACHE_TIME = now
+        print(f"[Learner Program Map] Loaded {len(program_map)} learner records from Google Sheets.")
+    except Exception as e:
+        print(f"[Learner Program Map Error] {e}")
+        if _LEARNER_PROGRAM_CACHE is None:
+            _LEARNER_PROGRAM_CACHE = {}
+    return _LEARNER_PROGRAM_CACHE
+
+
+def lookup_learner_program(email):
+    if not email or not isinstance(email, str) or not email.strip():
+        return {"program": "Not Found in Sheet", "degree_code": "Not Found in Sheet"}
+    
+    pmap = get_learner_program_map()
+    clean_email = email.strip().lower()
+    if clean_email in pmap:
+        return pmap[clean_email]
+    
+    return {"program": "Not Found in Sheet", "degree_code": "Not Found in Sheet"}
+
+
 def _hms(seconds):
     s = int(seconds or 0)
     return f"{s//3600:02d}:{(s%3600)//60:02d}:{s%60:02d}"
@@ -116,47 +191,58 @@ def _safe_title(sis_id):
 # ── Main push ─────────────────────────────────────────────────────────────────
 def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assignments=None):
     """Push FULL data (matching Excel) to a course-specific tab. No Consolidate tab."""
-    print("  Connecting to Google Sheets...")
-    gc  = get_google_client()
-    sh  = gc.open_by_key(SPREADSHEET_ID)
-    tab = _safe_title(sis_id)
+    import time
+    for attempt in range(5):
+        try:
+            print("  Connecting to Google Sheets...")
+            gc  = get_google_client()
+            sh  = gc.open_by_key(SPREADSHEET_ID)
+            tab = _safe_title(sis_id)
 
-    assignments = assignments or []
-    num_asgn_cols = len(assignments)
-    total_cols = 10 + num_asgn_cols + 2 + (duration_weeks * 2)
+            assignments = assignments or []
+            num_asgn_cols = len(assignments)
+            total_cols = 12 + num_asgn_cols + 2 + (duration_weeks * 2)
 
-    try:
-        old_ws = sh.worksheet(tab)
-    except gspread.exceptions.WorksheetNotFound:
-        old_ws = None
+            try:
+                old_ws = sh.worksheet(tab)
+            except gspread.exceptions.WorksheetNotFound:
+                old_ws = None
 
-    if old_ws:
-        all_ws = sh.worksheets()
-        if len(all_ws) > 1:
-            print(f"  Worksheet '{tab}' exists. Deleting old version...")
-            sh.del_worksheet(old_ws)
-            print(f"  Creating worksheet '{tab}'...")
-            ws = sh.add_worksheet(title=tab, rows=str(max(500, len(flat_rows)+10)), cols=str(total_cols + 2))
-        else:
-            print(f"  Worksheet '{tab}' is the only tab. Updating via temp worksheet...")
-            temp_title = f"{tab}_new"
-            ws = sh.add_worksheet(title=temp_title, rows=str(max(500, len(flat_rows)+10)), cols=str(total_cols + 2))
-            sh.del_worksheet(old_ws)
-            ws.update_title(tab)
-    else:
-        print(f"  Creating worksheet '{tab}'...")
-        ws = sh.add_worksheet(title=tab, rows=str(max(500, len(flat_rows)+10)), cols=str(total_cols + 2))
+            if old_ws:
+                all_ws = sh.worksheets()
+                if len(all_ws) > 1:
+                    print(f"  Worksheet '{tab}' exists. Deleting old version...")
+                    sh.del_worksheet(old_ws)
+                    time.sleep(1)
+                    print(f"  Creating worksheet '{tab}'...")
+                    ws = sh.add_worksheet(title=tab, rows=str(max(500, len(flat_rows)+10)), cols=str(total_cols + 2))
+                else:
+                    print(f"  Worksheet '{tab}' is the only tab. Updating via temp worksheet...")
+                    temp_title = f"{tab}_new"
+                    ws = sh.add_worksheet(title=temp_title, rows=str(max(500, len(flat_rows)+10)), cols=str(total_cols + 2))
+                    sh.del_worksheet(old_ws)
+                    ws.update_title(tab)
+            else:
+                print(f"  Creating worksheet '{tab}'...")
+                ws = sh.add_worksheet(title=tab, rows=str(max(500, len(flat_rows)+10)), cols=str(total_cols + 2))
 
-    try:
-        stale = sh.worksheet("Consolidate")
-        sh.del_worksheet(stale)
-        print("  Removed stale Consolidate tab.")
-    except gspread.exceptions.WorksheetNotFound:
-        pass
+            try:
+                stale = sh.worksheet("Consolidate")
+                sh.del_worksheet(stale)
+                print("  Removed stale Consolidate tab.")
+            except gspread.exceptions.WorksheetNotFound:
+                pass
+            break
+        except Exception as err:
+            if "429" in str(err) or "Quota" in str(err):
+                print(f"  [Google Sheets API Rate Limit 429] Waiting 8s before retry (Attempt {attempt+1}/5)...")
+                time.sleep(8)
+            else:
+                raise err
 
     grp_row1 = (
         ["Course Information"] * 2
-        + ["Learner Information"] * 4
+        + ["Learner Information"] * 6
         + ["Activity Summary"] * 2
         + ["Assignment Submissions"] * (2 + num_asgn_cols)
         + ["Engagement Classification"] * 2
@@ -166,7 +252,7 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
 
     hdr_row2 = [
         "Course ID", "Course Name",
-        "Cohort", "Learner Name", "Official Email ID", "Enrollment Status",
+        "Cohort", "Learner Name", "Official Email ID", "Program", "Degree Code", "Enrollment Status",
         "Last Activity Timestamp", "Total Time Spent (HH:MM:SS)",
         "Total Assignments", "Completed Assignments"
     ]
@@ -196,10 +282,14 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
         if completed_count is None:
             completed_count = sum(1 for a in assignments if subs_map.get(a["id"]) == "Yes")
 
+        prog_info = lookup_learner_program(r.get("email", ""))
+        p_val = r.get("program") or prog_info.get("program", "N/A")
+        d_val = r.get("degree_code") or prog_info.get("degree_code", "N/A")
+
         row = [
             sis_id, course_name,
             r.get("cohort", "N/A"), r.get("name", "N/A"),
-            r.get("email", "N/A"), r.get("status", "N/A"),
+            r.get("email", "N/A"), p_val, d_val, r.get("status", "N/A"),
             last_str, _hms(r.get("total_engagement_seconds", 0)),
             r.get("total_assignments", len(assignments)),
             completed_count
@@ -240,15 +330,15 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
                                                borders=_border(),
                                                horizontalAlignment="CENTER",
                                                verticalAlignment="MIDDLE"))
-                # Left align Cohort, Name, Email (cols 3, 4, 5 -> C, D, E)
-                b.format_cell_range(ws, f"C{i}:E{i}",
+                # Left align Cohort, Name, Email, Program, Degree Code (cols 3, 4, 5, 6, 7 -> C..G)
+                b.format_cell_range(ws, f"C{i}:G{i}",
                                     CellFormat(backgroundColor=_color(bg),
                                                borders=_border(),
                                                horizontalAlignment="LEFT",
                                                verticalAlignment="MIDDLE"))
 
             for idx_a in range(num_asgn_cols):
-                col_let = _col_letter(11 + idx_a)
+                col_let = _col_letter(13 + idx_a)
                 for i, r in enumerate(flat_rows, start=3):
                     a_id = assignments[idx_a]["id"]
                     sub_val = r.get("assignment_submissions", {}).get(a_id, "No")
@@ -261,7 +351,7 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
                                                    verticalAlignment="MIDDLE",
                                                    borders=_border()))
 
-            cat_col_idx = 11 + num_asgn_cols
+            cat_col_idx = 13 + num_asgn_cols
             cat_col = _col_letter(cat_col_idx)
             for i, r in enumerate(flat_rows, start=3):
                 cat = r.get("category", "")
@@ -399,93 +489,158 @@ def _fetch_ws(ws):
         return ws.title, None
 
 
-def get_dashboard_data(force=False):
-    import time as _t
-    now = _t.time()
-
-    # 1. Return in-memory cache if fresh and not forced
-    if not force and _dashboard_cache["data"] and (now - _dashboard_cache["fetched_at"]) < CACHE_TTL:
-        return _dashboard_cache["data"]
-
-    # 2. Return disk cache if available and not forced
-    if not force and os.path.exists(CACHE_FILE):
+def _parse_hms(val_str):
+    if not val_str:
+        return 0
+    s = str(val_str).strip()
+    if not s or s.lower() in ("n/a", "none", "active", "inactive", "-"):
+        return 0
+    
+    parts = s.split(":")
+    if len(parts) == 3:
         try:
-            mtime = os.path.getmtime(CACHE_FILE)
-            if (now - mtime) < 120:  # Fresh disk cache within 2 minutes
-                with open(CACHE_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    _dashboard_cache["data"] = data
-                    _dashboard_cache["fetched_at"] = now
-                    return data
-        except Exception:
+            return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+        except ValueError:
+            pass
+    elif len(parts) == 2:
+        try:
+            return int(parts[0]) * 60 + int(parts[1])
+        except ValueError:
             pass
 
-    # 3. Otherwise, fetch fresh live data from Google Sheets API
+    m_hr = re.search(r"([\d.]+)\s*hr", s, re.I)
+    if m_hr:
+        try:
+            return int(float(m_hr.group(1)) * 3600)
+        except ValueError:
+            pass
+
+    m_min = re.search(r"([\d.]+)\s*min", s, re.I)
+    if m_min:
+        try:
+            return int(float(m_min.group(1)) * 60)
+        except ValueError:
+            pass
+
+    try:
+        val = float(s)
+        return int(val * 3600) if val < 24 else int(val)
+    except ValueError:
+        return 0
+
+# ── Dashboard cache ───────────────────────────────────────────────────────────
+_dashboard_cache = {"data": None, "fetched_at": 0}
+CACHE_TTL = 30  # 30-second memory cache TTL for instant sub-millisecond responses
+CACHE_FILE = os.path.join(SCRIPT_DIR, "dashboard_cache.json")
+
+
+def _fetch_ws(ws):
+    try:
+        return ws.title, ws.get_all_values()
+    except Exception:
+        return ws.title, None
+
+
+def _fetch_fresh_dashboard_data():
+    import time as _t
+    now = _t.time()
     print("  Fetching fresh dashboard data from Google Sheets API...")
     gc = get_google_client()
     sh = gc.open_by_key(SPREADSHEET_ID)
 
-    # Read all course-specific tabs in parallel; skip any Consolidate tab
-    all_data_rows = []   # list of (row_list, header_row) tuples
+    all_data_rows = []
     course_tabs   = []
     with ThreadPoolExecutor(max_workers=10) as ex:
         for title, vals in ex.map(_fetch_ws, sh.worksheets()):
             if title == "Consolidate" or "Assignments" in title:
-                continue          # ignore any leftover Consolidate tab
+                continue
             if vals and len(vals) > 2:
                 course_tabs.append(title)
-                header_row = vals[1]  # row 2 (0-indexed: index 1) has column names
-                for data_row in vals[2:]:  # data starts at row 3
+                header_row = vals[1]
+                for data_row in vals[2:]:
                     all_data_rows.append((data_row, header_row))
 
-    # ── Parse each row ───────────────────────────────────────────────────────
     total_courses_set = set()
     active_ct = 0; inactive_ct = 0
     total_missing = 0; total_submitted = 0; total_assignments = 0
     total_time_s = 0; valid_time = 0
 
-    cat_counts   = {}   # category -> count
-    course_map   = {}   # course_id -> {name, active, inactive, total, missing, submitted, total_asgn}
-    cohort_map   = {}   # cohort -> {name, active, inactive, total, missing, total_time_s, valid_time}
-    watchlist    = []   # inactive learners detail
-    top_learners = []   # highest time spent
-    learner_profiles = {} # email/name -> profile detail
-    weekly_agg   = {}   # week_num -> {met: N, not_met: N, total: N}
-    course_weekly = {}  # course_id -> {week_num -> {met: N, not_met: N, total: N}}
+    cat_counts   = {}
+    course_map   = {}
+    cohort_map   = {}
+    watchlist    = []
+    top_learners = []
+    learner_profiles = {}
+    weekly_agg   = {}
+    course_weekly = {}
 
+    all_learners = []
     for row, header_row in all_data_rows:
-        if len(row) < 9:
-            continue
-        course_id    = row[0].strip()
-        course_name  = row[1].strip()
-        cohort       = row[2].strip() or "N/A"
-        learner_name = row[3].strip()
-        email        = row[4].strip()
-        status       = row[5].strip()
-        last_act     = row[6].strip()
-        time_str     = row[7].strip()
-        total_asgn   = _safe_int(row[8])
-
-        if not learner_name:
+        if len(row) < 5:
             continue
 
-        # ── Use header to find exact column positions ──────────────────────────
-        # Header row contains: ..."Engagement Category", "Overall Activity", ...
         hdr_lower = [h.strip().lower() for h in header_row]
+
+        def find_idx(target_name, default_i):
+            if target_name in hdr_lower:
+                return hdr_lower.index(target_name)
+            return default_i
+
+        c_idx_id       = find_idx("course id", 0)
+        c_idx_cname    = find_idx("course name", 1)
+        c_idx_cohort   = find_idx("cohort", 2)
+        c_idx_name     = find_idx("learner name", 3)
+        c_idx_email    = find_idx("official email id", 4)
+        c_idx_prog     = find_idx("program", 5)
+        c_idx_deg      = find_idx("degree code", 6)
+        c_idx_status   = find_idx("enrollment status", 7)
+        c_idx_last     = find_idx("last activity timestamp", 8)
+        c_idx_time     = find_idx("total time spent", 9)
+        c_idx_totasgn  = find_idx("total assignments", 10)
+
+        course_id    = row[c_idx_id].strip()    if len(row) > c_idx_id    else ""
+        course_name  = row[c_idx_cname].strip() if len(row) > c_idx_cname else ""
+        cohort       = row[c_idx_cohort].strip() if len(row) > c_idx_cohort else "N/A"
+        learner_name = row[c_idx_name].strip()  if len(row) > c_idx_name   else ""
+        email        = row[c_idx_email].strip() if len(row) > c_idx_email  else ""
+        status       = row[c_idx_status].strip() if len(row) > c_idx_status else ""
+        last_act     = row[c_idx_last].strip()  if len(row) > c_idx_last   else ""
+        time_str     = row[c_idx_time].strip()  if len(row) > c_idx_time   else ""
+        total_asgn   = _safe_int(row[c_idx_totasgn]) if len(row) > c_idx_totasgn else 0
+
+        prog_info = lookup_learner_program(email)
+
+        program = "Not Found in Sheet"
+        if "program" in hdr_lower:
+            p_idx = hdr_lower.index("program")
+            if len(row) > p_idx:
+                val = row[p_idx].strip()
+                if val and val.lower() not in ("active", "inactive", "not found in sheet"):
+                    program = val
+        if program == "Not Found in Sheet" or not program:
+            program = prog_info.get("program", "Not Found in Sheet")
+
+        degree_code = "Not Found in Sheet"
+        if "degree code" in hdr_lower:
+            d_idx = hdr_lower.index("degree code")
+            if len(row) > d_idx:
+                val = row[d_idx].strip()
+                if val and not re.search(r'\d{4}-\d{2}-\d{2}', val) and val.lower() != "not found in sheet":
+                    degree_code = val
+        if degree_code == "Not Found in Sheet" or not degree_code:
+            degree_code = prog_info.get("degree_code", "Not Found in Sheet")
+
         try:
             overall_idx  = hdr_lower.index("overall activity")
             category_idx = hdr_lower.index("engagement category")
         except ValueError:
-            # Fallback: dynamic calculation based on total_asgn
-            # Columns: [0..8 fixed] + [9=completed] + [10..10+N-1 per-asgn Yes/No] + [cat] + [overall]
-            category_idx = 10 + total_asgn
+            category_idx = 12 + total_asgn
             overall_idx  = category_idx + 1
 
         overall  = row[overall_idx].strip()  if len(row) > overall_idx  else "N/A"
         category = row[category_idx].strip() if len(row) > category_idx else "N/A"
 
-        # Count submissions and extract exact missed assignment module names
-        asgn_start = 10
+        asgn_start = 12 if "program" in hdr_lower else 10
         asgn_end   = asgn_start + total_asgn
         asgn_cells = row[asgn_start:asgn_end] if len(row) >= asgn_end else row[asgn_start:]
         submitted  = sum(1 for c in asgn_cells if c.strip().lower() == "yes")
@@ -498,7 +653,8 @@ def get_dashboard_data(force=False):
                 title = header_row[col_header_idx].strip() if len(header_row) > col_header_idx else f"Assignment {idx_col+1}"
                 missed_assignments.append(title)
 
-        # ── Read Weekly W1-W6 Status columns ──────────────────────────
+        time_seconds = _parse_hms(time_str)
+
         learner_weekly = {}
         for wi in range(1, 7):
             wk_status_hdr = f"w{wi} status"
@@ -507,27 +663,46 @@ def get_dashboard_data(force=False):
                 wk_val = row[wk_idx].strip().upper() if len(row) > wk_idx else "-"
             else:
                 wk_val = "-"
+
+            if wk_val not in ("MET", "NOT MET"):
+                cat_upper = category.upper()
+                overall_upper = overall.upper()
+                target_asgn = round(total_asgn * (wi / 6.0)) if total_asgn > 0 else 0
+                if "ACTIVE" in cat_upper or overall_upper in ("ACTIVE", "ACTIVE LEARNER"):
+                    if submitted >= target_asgn or (wi <= 4 and time_seconds > 3600):
+                        wk_val = "MET"
+                    else:
+                        wk_val = "NOT MET"
+                elif "MISSED" in cat_upper:
+                    if submitted >= target_asgn:
+                        wk_val = "MET"
+                    else:
+                        wk_val = "NOT MET"
+                else:
+                    if wi == 1 and (submitted > 0 or time_seconds > 1800):
+                        wk_val = "MET"
+                    else:
+                        wk_val = "NOT MET"
+
             learner_weekly[wi] = wk_val
 
-            if wk_val in ("MET", "NOT MET"):
-                if wi not in weekly_agg:
-                    weekly_agg[wi] = {"met": 0, "not_met": 0, "total": 0}
-                weekly_agg[wi]["total"] += 1
-                if wk_val == "MET":
-                    weekly_agg[wi]["met"] += 1
-                else:
-                    weekly_agg[wi]["not_met"] += 1
+            if wi not in weekly_agg:
+                weekly_agg[wi] = {"met": 0, "not_met": 0, "total": 0}
+            weekly_agg[wi]["total"] += 1
+            if wk_val == "MET":
+                weekly_agg[wi]["met"] += 1
+            else:
+                weekly_agg[wi]["not_met"] += 1
 
-                # Per-course weekly aggregation
-                if course_id not in course_weekly:
-                    course_weekly[course_id] = {}
-                if wi not in course_weekly[course_id]:
-                    course_weekly[course_id][wi] = {"met": 0, "not_met": 0, "total": 0}
-                course_weekly[course_id][wi]["total"] += 1
-                if wk_val == "MET":
-                    course_weekly[course_id][wi]["met"] += 1
-                else:
-                    course_weekly[course_id][wi]["not_met"] += 1
+            if course_id not in course_weekly:
+                course_weekly[course_id] = {}
+            if wi not in course_weekly[course_id]:
+                course_weekly[course_id][wi] = {"met": 0, "not_met": 0, "total": 0}
+            course_weekly[course_id][wi]["total"] += 1
+            if wk_val == "MET":
+                course_weekly[course_id][wi]["met"] += 1
+            else:
+                course_weekly[course_id][wi]["not_met"] += 1
 
         total_courses_set.add(course_id)
         total_missing    += missing
@@ -546,21 +721,21 @@ def get_dashboard_data(force=False):
             watchlist.append({
                 "learner_name": learner_name,
                 "email": email,
+                "program": program,
+                "degree_code": degree_code,
                 "course_id": course_id,
                 "course_name": course_name,
                 "cohort": cohort,
                 "category": category,
                 "missing": missing,
-                "overdue": missing,  # overdue == missing for per-assignment format
+                "overdue": missing,
                 "last_act": last_act,
                 "time_hms": time_str,
                 "missed_assignments": missed_assignments,
             })
 
-
         cat_counts[category] = cat_counts.get(category, 0) + 1
 
-        # Course breakdown
         if course_id not in course_map:
             course_map[course_id] = {
                 "course_id": course_id,
@@ -586,7 +761,6 @@ def get_dashboard_data(force=False):
         if category == "MISSED SUBMISSION":
             cm["missed_submissions"] += 1
 
-        # Cohort breakdown
         if cohort not in cohort_map:
             cohort_map[cohort] = {
                 "name": cohort,
@@ -610,13 +784,15 @@ def get_dashboard_data(force=False):
             coh["inactive"] += 1
         if category == "MISSED SUBMISSION":
             coh["missed_submissions"] += 1
-        # Populate learner profile data for search modal
+
         l_key = (email or learner_name).strip().lower()
         if l_key:
             if l_key not in learner_profiles:
                 learner_profiles[l_key] = {
                     "learner_name": learner_name,
                     "email": email,
+                    "program": program,
+                    "degree_code": degree_code,
                     "courses": [],
                     "total_time_s": 0,
                     "submitted": 0,
@@ -637,47 +813,48 @@ def get_dashboard_data(force=False):
                 if ma not in lp["missed_assignments"]:
                     lp["missed_assignments"].append(ma)
 
-        # Only include learners with > 10 minutes (600s) time spent for content consumption leaderboard
-        if ts >= 600:
-            top_learners.append({
-                "learner_name": learner_name,
-                "email": email,
-                "course_id": course_id,
-                "course_name": course_name,
-                "cohort": cohort,
-                "time_seconds": ts,
-                "time_hms": time_str,
-                "submitted": submitted,
-                "total_asgn": total_asgn,
-                "category": category,
-                "overall": overall,
-                "last_act": last_act,
-                "missed_assignments": missed_assignments,
-            })
+        learner_obj = {
+            "learner_name": learner_name,
+            "email": email,
+            "program": program,
+            "degree_code": degree_code,
+            "course_id": course_id,
+            "course_name": course_name,
+            "cohort": cohort,
+            "overall": overall,
+            "category": category,
+            "time_seconds": ts,
+            "time_hms": time_str,
+            "submitted": submitted,
+            "missing": missing,
+            "total_asgn": total_asgn,
+            "last_act": last_act,
+            "missed_assignments": missed_assignments,
+            "weekly": learner_weekly
+        }
+        all_learners.append(learner_obj)
+        top_learners.append(learner_obj)
 
     avg_time_h = round((total_time_s / valid_time) / 3600, 2) if valid_time else 0
 
-    # Sort top learners by time spent
-    top_learners.sort(key=lambda x: x["time_seconds"], reverse=True)
+    top_learners.sort(key=lambda x: (x["time_seconds"], x["submitted"]), reverse=True)
 
-    # Format learner profiles HMS strings
     for lk, lp in learner_profiles.items():
         lp["total_time_hms"] = _format_hms(lp["total_time_s"])
         avg_s = int(lp["total_time_s"] / max(1, len(lp["courses"])))
         lp["avg_time_hms"] = _format_hms(avg_s)
 
-    # Process course health percentage
     for cid, cinfo in course_map.items():
-        max_possible = cinfo["total"] * (cinfo["total_asgn"] / max(1, cinfo["total"]))
-        if max_possible > 0:
-            cinfo["health_pct"] = round(min(100.0, (cinfo["submitted"] / max(1, max_possible)) * 100.0), 1)
+        if cinfo["total_asgn"] > 0:
+            cinfo["health_pct"] = round(min(100.0, (cinfo["submitted"] / cinfo["total_asgn"]) * 100.0), 1)
+        elif cinfo["total"] > 0:
+            cinfo["health_pct"] = round((cinfo["active"] / cinfo["total"]) * 100.0, 1)
         else:
             cinfo["health_pct"] = 0.0
 
-    # Process cohort map to calculate averages
     processed_cohorts = {}
     for cname, cinfo in cohort_map.items():
-        avg_coh_t = round((cinfo["total_time_s"] / cinfo["valid_time"]) / 3600, 2) if cinfo["valid_time"] else 0
+        avg_coh_t = round((cinfo["total_time_s"] / cinfo["total"]) / 3600, 2) if cinfo["total"] else 0
         processed_cohorts[cname] = {
             "name": cname,
             "total": cinfo["total"],
@@ -693,7 +870,6 @@ def get_dashboard_data(force=False):
     inactive_only_cnt = cat_counts.get("INACTIVE", 0) + cat_counts.get("INACTIVE - NOT LOGGED IN", 0)
     eng_ratio = round((active_ct / max(1, total_learners_cnt)) * 100.0, 1) if total_learners_cnt else 0.0
 
-    # Build weekly summary list sorted by week number
     weekly_summary = []
     for wi in sorted(weekly_agg.keys()):
         wa = weekly_agg[wi]
@@ -706,7 +882,6 @@ def get_dashboard_data(force=False):
             "met_pct": pct
         })
 
-    # Attach per-course weekly data to course_map
     for cid, wk_data in course_weekly.items():
         if cid in course_map:
             cw_list = []
@@ -741,7 +916,8 @@ def get_dashboard_data(force=False):
         "weekly_summary": weekly_summary,
         "watchlist": watchlist[:100],
         "top_learners": top_learners[:100],
-        "learner_profiles": learner_profiles
+        "learner_profiles": learner_profiles,
+        "all_learners": all_learners
     }
 
     # Save to disk cache
@@ -754,6 +930,43 @@ def get_dashboard_data(force=False):
     _dashboard_cache["data"] = payload
     _dashboard_cache["fetched_at"] = now
     return payload
+
+
+def get_dashboard_data(force=False):
+    import time as _t
+    now = _t.time()
+
+    if not force and _dashboard_cache["data"] and (now - _dashboard_cache["fetched_at"]) < CACHE_TTL:
+        return _dashboard_cache["data"]
+
+    if not force and os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if data and "kpis" in data:
+                    _dashboard_cache["data"] = data
+                    _dashboard_cache["fetched_at"] = now
+                    return data
+        except Exception:
+            pass
+
+    try:
+        return _fetch_fresh_dashboard_data()
+    except Exception as fetch_err:
+        print(f"  [Fetch Warning] Could not fetch fresh data from Google Sheets: {fetch_err}")
+        if os.path.exists(CACHE_FILE):
+            try:
+                with open(CACHE_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if data and "kpis" in data:
+                        _dashboard_cache["data"] = data
+                        _dashboard_cache["fetched_at"] = now
+                        return data
+            except Exception:
+                pass
+        if _dashboard_cache["data"]:
+            return _dashboard_cache["data"]
+        raise fetch_err
 
 
 def _safe_int(v):
