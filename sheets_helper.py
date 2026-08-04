@@ -115,7 +115,7 @@ def get_learner_program_map(force_refresh=False):
 
     program_map = {}
     try:
-        doc_id = "1Q68vf9v--dS9_X7uRbgzZ30XzWtNGgYqMUWhPOF_sLc"
+        doc_id = os.getenv("LEARNER_PROGRAM_SHEET_ID", "1Q68vf9v--dS9_X7uRbgzZ30XzWtNGgYqMUWhPOF_sLc")
         gc = get_google_client()
         sh = gc.open_by_key(doc_id)
         
