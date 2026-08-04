@@ -906,6 +906,7 @@
         // State
         // ────────────────────────────────────────────────────────────────────────────
         let _rawData = null;
+        let _lastFilteredData = null;
         let _pollInterval = null;
         let _silentInterval = null;
         let leaderboardCurrentPage = 1;
@@ -2093,6 +2094,7 @@
                 watchlist: filteredWatchlist
             };
 
+            _lastFilteredData = finalDashboardData;
             renderDashboard(finalDashboardData);
         }
 
