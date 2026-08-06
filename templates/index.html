@@ -594,8 +594,8 @@
                         <select id="program-filter-select" onchange="onProgramFilterChange(this.value)"
                             class="bg-transparent text-xs text-white font-semibold focus:outline-none cursor-pointer border-none py-0 pl-1 pr-2">
                             <option value="ALL" class="bg-slate-900 text-white">All Programs</option>
-                            <option value="MBA" class="bg-slate-900 text-white">MBA (Includes Dual MBA)</option>
-                            <option value="DBA" class="bg-slate-900 text-white">DBA (Includes Dual DBA)</option>
+                            <option value="MED" class="bg-slate-900 text-white">MED (Includes Dual MED)</option>
+                            <option value="EDD" class="bg-slate-900 text-white">EDD (Includes Dual EDD)</option>
                             <option value="DUAL" class="bg-slate-900 text-white">Dual Program (All Dual)</option>
                         </select>
                     </div>
@@ -621,51 +621,51 @@
                             class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Courses</span>
                         <span id="kpi-courses" class="text-lg font-black text-white">--</span>
                     </div>
-                    <div class="kpi-card glass rounded-lg p-2.5" title="Total unique enrolled learners with MBA / DBA breakdown">
+                    <div class="kpi-card glass rounded-lg p-2.5" title="Total unique enrolled learners with MED / EDD breakdown">
                         <span class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Total Learners</span>
                         <div class="flex items-baseline justify-between">
                             <span id="kpi-total" class="text-lg font-black text-white">--</span>
                         </div>
                         <div class="flex items-center gap-1.5 mt-1 pt-1 border-t border-white/10 text-[9px] font-mono text-white/60">
-                            <span class="text-blue-300 font-bold" title="MBA Total">MBA: <span id="kpi-total-mba">0</span></span>
+                            <span class="text-blue-300 font-bold" title="MED Total">MED: <span id="kpi-total-med">0</span></span>
                             <span class="text-white/20">•</span>
-                            <span class="text-purple-300 font-bold" title="DBA Total">DBA: <span id="kpi-total-dba">0</span></span>
+                            <span class="text-purple-300 font-bold" title="EDD Total">EDD: <span id="kpi-total-edd">0</span></span>
                         </div>
                     </div>
                     <div class="kpi-card glass rounded-lg p-2.5" title="All learners who have submitted all required assignments">
                         <span class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Active Learners</span>
                         <span id="kpi-active" class="text-lg font-black text-emerald-400">--</span>
                         <div class="flex items-center gap-1.5 mt-1 pt-1 border-t border-white/10 text-[9px] font-mono text-white/60">
-                            <span class="text-blue-300 font-bold" title="MBA Active">MBA: <span id="kpi-active-mba">0</span></span>
+                            <span class="text-blue-300 font-bold" title="MED Active">MED: <span id="kpi-active-med">0</span></span>
                             <span class="text-white/20">•</span>
-                            <span class="text-purple-300 font-bold" title="DBA Active">DBA: <span id="kpi-active-dba">0</span></span>
+                            <span class="text-purple-300 font-bold" title="EDD Active">EDD: <span id="kpi-active-edd">0</span></span>
                         </div>
                     </div>
                     <div class="kpi-card glass rounded-lg p-2.5" title="Learners who have missed 1 or more submissions">
                         <span class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Missed Subs</span>
                         <span id="kpi-missed" class="text-lg font-black text-amber-400">--</span>
                         <div class="flex items-center gap-1.5 mt-1 pt-1 border-t border-white/10 text-[9px] font-mono text-white/60">
-                            <span class="text-blue-300 font-bold" title="MBA Missed">MBA: <span id="kpi-missed-mba">0</span></span>
+                            <span class="text-blue-300 font-bold" title="MED Missed">MED: <span id="kpi-missed-med">0</span></span>
                             <span class="text-white/20">•</span>
-                            <span class="text-purple-300 font-bold" title="DBA Missed">DBA: <span id="kpi-missed-dba">0</span></span>
+                            <span class="text-purple-300 font-bold" title="EDD Missed">EDD: <span id="kpi-missed-edd">0</span></span>
                         </div>
                     </div>
                     <div class="kpi-card glass rounded-lg p-2.5" title="Learners who have not logged in or missed all submissions">
                         <span class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Inactive</span>
                         <span id="kpi-inactive" class="text-lg font-black text-red-400">--</span>
                         <div class="flex items-center gap-1.5 mt-1 pt-1 border-t border-white/10 text-[9px] font-mono text-white/60">
-                            <span class="text-blue-300 font-bold" title="MBA Inactive">MBA: <span id="kpi-inactive-mba">0</span></span>
+                            <span class="text-blue-300 font-bold" title="MED Inactive">MED: <span id="kpi-inactive-med">0</span></span>
                             <span class="text-white/20">•</span>
-                            <span class="text-purple-300 font-bold" title="DBA Inactive">DBA: <span id="kpi-inactive-dba">0</span></span>
+                            <span class="text-purple-300 font-bold" title="EDD Inactive">EDD: <span id="kpi-inactive-edd">0</span></span>
                         </div>
                     </div>
                     <div class="kpi-card glass rounded-lg p-2.5" title="The overall average time spent across all sections and modules">
                         <span class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Avg Time</span>
                         <div class="flex items-baseline gap-1"><span id="kpi-time" class="text-lg font-black text-white">--</span><span class="text-[9px] text-white/40">hrs</span></div>
                         <div class="flex items-center gap-1.5 mt-1 pt-1 border-t border-white/10 text-[9px] font-mono text-white/60">
-                            <span class="text-blue-300 font-bold" title="MBA Average Time">MBA: <span id="kpi-time-mba">0h</span></span>
+                            <span class="text-blue-300 font-bold" title="MED Average Time">MED: <span id="kpi-time-med">0h</span></span>
                             <span class="text-white/20">•</span>
-                            <span class="text-purple-300 font-bold" title="DBA Average Time">DBA: <span id="kpi-time-dba">0h</span></span>
+                            <span class="text-purple-300 font-bold" title="EDD Average Time">EDD: <span id="kpi-time-edd">0h</span></span>
                         </div>
                     </div>
                 </div>
@@ -1749,11 +1749,11 @@
             const p = (prog || '').trim().toUpperCase();
             const d = (degCode || '').trim().toUpperCase();
             
-            if (filterVal === 'MBA') {
-                return p === 'MBA' || (p === 'DUAL' && d === 'MBA');
+            if (filterVal === 'MED') {
+                return p === 'MED' || (p === 'DUAL' && d === 'MED');
             }
-            if (filterVal === 'DBA') {
-                return p === 'DBA' || (p === 'DUAL' && d === 'DBA');
+            if (filterVal === 'EDD') {
+                return p === 'EDD' || (p === 'DUAL' && d === 'EDD');
             }
             if (filterVal === 'DUAL') {
                 return p === 'DUAL';
@@ -1892,11 +1892,11 @@
             // 4. Compute all Dashboard Data structures from filteredLearners
             let activeCount = 0, missedCount = 0, inactiveCount = 0;
             let totalMissing = 0, totalSubmitted = 0, totalTimeSec = 0, validTimeCount = 0;
-            let mbaTotal = 0, dbaTotal = 0;
-            let mbaActive = 0, dbaActive = 0;
-            let mbaMissed = 0, dbaMissed = 0;
-            let mbaInactive = 0, dbaInactive = 0;
-            let mbaTimeSec = 0, dbaTimeSec = 0;
+            let medTotal = 0, eddTotal = 0;
+            let medActive = 0, eddActive = 0;
+            let medMissed = 0, eddMissed = 0;
+            let medInactive = 0, eddInactive = 0;
+            let medTimeSec = 0, eddTimeSec = 0;
 
             const catCounts = {};
             const courseMap = {};
@@ -1907,20 +1907,20 @@
             filteredLearners.forEach(l => {
                 const p = (l.program || '').trim().toUpperCase();
                 const d = (l.degree_code || '').trim().toUpperCase();
-                const isMBA = p === 'MBA' || (p === 'DUAL' && d === 'MBA');
-                const isDBA = p === 'DBA' || (p === 'DUAL' && d === 'DBA');
+                const isMED = p === 'MED' || (p === 'DUAL' && d === 'MED');
+                const isEDD = p === 'EDD' || (p === 'DUAL' && d === 'EDD');
 
-                if (isMBA) {
-                    mbaTotal++;
-                    if (l.overall === 'Active') mbaActive++;
-                    else mbaInactive++;
-                    if (l.category === 'MISSED SUBMISSION') mbaMissed++;
+                if (isMED) {
+                    medTotal++;
+                    if (l.overall === 'Active') medActive++;
+                    else medInactive++;
+                    if (l.category === 'MISSED SUBMISSION') medMissed++;
                 }
-                if (isDBA) {
-                    dbaTotal++;
-                    if (l.overall === 'Active') dbaActive++;
-                    else dbaInactive++;
-                    if (l.category === 'MISSED SUBMISSION') dbaMissed++;
+                if (isEDD) {
+                    eddTotal++;
+                    if (l.overall === 'Active') eddActive++;
+                    else eddInactive++;
+                    if (l.category === 'MISSED SUBMISSION') eddMissed++;
                 }
 
                 if (l.overall === 'Active') activeCount++;
@@ -1936,8 +1936,8 @@
                 totalTimeSec += sec;
                 if (sec > 0) validTimeCount++;
 
-                if (isMBA) mbaTimeSec += sec;
-                if (isDBA) dbaTimeSec += sec;
+                if (isMED) medTimeSec += sec;
+                if (isEDD) eddTimeSec += sec;
 
                 const cid = l.course_id || 'UNKNOWN';
                 activeCourseIdSet.add(cid);
@@ -2056,8 +2056,8 @@
 
             const totalLearners = activeCount + inactiveCount;
             const avgTimeHours = totalLearners ? Math.round((totalTimeSec / totalLearners / 3600) * 100) / 100 : 0;
-            const mbaAvgTimeHours = mbaTotal ? Math.round((mbaTimeSec / mbaTotal / 3600) * 100) / 100 : 0;
-            const dbaAvgTimeHours = dbaTotal ? Math.round((dbaTimeSec / dbaTotal / 3600) * 100) / 100 : 0;
+            const medAvgTimeHours = medTotal ? Math.round((medTimeSec / medTotal / 3600) * 100) / 100 : 0;
+            const eddAvgTimeHours = eddTotal ? Math.round((eddTimeSec / eddTotal / 3600) * 100) / 100 : 0;
             const engRatio = totalLearners ? Math.round((activeCount / totalLearners) * 1000) / 10 : 0;
 
             const filteredWatchlist = filteredLearners.filter(l => l.overall !== 'Active');
@@ -2075,16 +2075,16 @@
                     total_submitted: totalSubmitted,
                     avg_time_hours: avgTimeHours,
                     engagement_ratio: engRatio,
-                    mba_total: mbaTotal,
-                    dba_total: dbaTotal,
-                    mba_active: mbaActive,
-                    dba_active: dbaActive,
-                    mba_missed: mbaMissed,
-                    dba_missed: dbaMissed,
-                    mba_inactive: mbaInactive,
-                    dba_inactive: dbaInactive,
-                    mba_avg_time: mbaAvgTimeHours,
-                    dba_avg_time: dbaAvgTimeHours
+                    med_total: medTotal,
+                    edd_total: eddTotal,
+                    med_active: medActive,
+                    edd_active: eddActive,
+                    med_missed: medMissed,
+                    edd_missed: eddMissed,
+                    med_inactive: medInactive,
+                    edd_inactive: eddInactive,
+                    med_avg_time: medAvgTimeHours,
+                    edd_avg_time: eddAvgTimeHours
                 },
                 cat_counts: catCounts,
                 weekly_summary: weeklySummary,
@@ -2474,20 +2474,20 @@
                 if (el) el.textContent = val;
             };
 
-            setTxt('kpi-total-mba', k.mba_total ?? 0);
-            setTxt('kpi-total-dba', k.dba_total ?? 0);
+            setTxt('kpi-total-med', k.med_total ?? 0);
+            setTxt('kpi-total-edd', k.edd_total ?? 0);
 
-            setTxt('kpi-active-mba', k.mba_active ?? 0);
-            setTxt('kpi-active-dba', k.dba_active ?? 0);
+            setTxt('kpi-active-med', k.med_active ?? 0);
+            setTxt('kpi-active-edd', k.edd_active ?? 0);
 
-            setTxt('kpi-missed-mba', k.mba_missed ?? 0);
-            setTxt('kpi-missed-dba', k.dba_missed ?? 0);
+            setTxt('kpi-missed-med', k.med_missed ?? 0);
+            setTxt('kpi-missed-edd', k.edd_missed ?? 0);
 
-            setTxt('kpi-inactive-mba', k.mba_inactive ?? 0);
-            setTxt('kpi-inactive-dba', k.dba_inactive ?? 0);
+            setTxt('kpi-inactive-med', k.med_inactive ?? 0);
+            setTxt('kpi-inactive-edd', k.edd_inactive ?? 0);
 
-            setTxt('kpi-time-mba', (k.mba_avg_time ?? 0) + 'h');
-            setTxt('kpi-time-dba', (k.dba_avg_time ?? 0) + 'h');
+            setTxt('kpi-time-med', (k.med_avg_time ?? 0) + 'h');
+            setTxt('kpi-time-edd', (k.edd_avg_time ?? 0) + 'h');
 
             renderWeeklyTracker(data);
             renderEngagementCategories(data);
