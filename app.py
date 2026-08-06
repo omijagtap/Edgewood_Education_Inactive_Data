@@ -201,9 +201,8 @@ def run_audit(task_id, course_codes_input, excluded_modules=None):
             buf = io.BytesIO(f.read())
         buf.seek(0)
 
-        safe_name = course_ids[0].replace(" ", "_").replace("/", "-")
+        safe_name = course_ids[0].replace(" ", "_").replace("/", "-") if course_ids else "Audit"
         task_results[task_id] = {
-            "file": buf,
             "filename": f"Edgewood_Inactive_Report_{safe_name}.xlsx"
         }
 
@@ -250,24 +249,25 @@ def status(task_id):
 
 @app.route("/download/<task_id>")
 def download(task_id):
-    if task_id in task_results:
-        res = task_results[task_id]
-        res["file"].seek(0)
-        return send_file(
-            res["file"],
-            as_attachment=True,
-            download_name=res["filename"],
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-    file_path = os.path.join(TASK_STORE_DIR, f"{task_id}.xlsx")
-    if os.path.exists(file_path):
+    try:
+        file_path = os.path.join(TASK_STORE_DIR, f"{task_id}.xlsx")
+        if not os.path.exists(file_path):
+            return "File not found or expired.", 404
+
+        filename = f"Edgewood_Inactive_Report_{task_id[:8]}.xlsx"
+        if task_id in task_results and "filename" in task_results[task_id]:
+            filename = task_results[task_id]["filename"]
+
         return send_file(
             file_path,
             as_attachment=True,
-            download_name=f"Edgewood_Inactive_Report_{task_id[:8]}.xlsx",
+            download_name=filename,
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-    return "File not found or expired.", 404
+    except Exception as e:
+        import traceback
+        original_print(f"[Download Error] {traceback.format_exc()}")
+        return f"Error downloading report: {str(e)}", 500
 
 
 @app.route("/api/dashboard")
