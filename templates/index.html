@@ -603,7 +603,8 @@
             </div>
 
             <!-- Loading skeleton -->
-            <div id="dash-loading" class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 relative z-1">
+            <div id="dash-loading" class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3 relative z-1">
+                <div class="glass-sm rounded-2xl h-16 animate-pulse"></div>
                 <div class="glass-sm rounded-2xl h-16 animate-pulse"></div>
                 <div class="glass-sm rounded-2xl h-16 animate-pulse"></div>
                 <div class="glass-sm rounded-2xl h-16 animate-pulse"></div>
@@ -615,7 +616,7 @@
             <div id="dash-content" class="hidden space-y-6 relative z-1">
 
                 <!-- Compact KPI Cards (Smaller fonts) -->
-                <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2" id="kpi-grid">
+                <div class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-2" id="kpi-grid">
                     <div class="kpi-card glass rounded-lg p-2.5" title="Total courses tracked in audit">
                         <span
                             class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Courses</span>
@@ -639,6 +640,15 @@
                             <span class="text-blue-300 font-bold" title="MED Active">MED: <span id="kpi-active-med">0</span></span>
                             <span class="text-white/20">•</span>
                             <span class="text-purple-300 font-bold" title="EDD Active">EDD: <span id="kpi-active-edd">0</span></span>
+                        </div>
+                    </div>
+                    <div class="kpi-card glass rounded-lg p-2.5" title="Percentage of active learners (Active / Total * 100%)">
+                        <span class="text-[8px] font-bold text-white/40 uppercase tracking-wider block mb-0.5">Completion %</span>
+                        <div class="flex items-baseline gap-1"><span id="kpi-completion" class="text-lg font-black text-emerald-400">--</span><span class="text-[9px] text-white/40">%</span></div>
+                        <div class="flex items-center gap-1.5 mt-1 pt-1 border-t border-white/10 text-[9px] font-mono text-white/60">
+                            <span class="text-blue-300 font-bold" title="MED Completion %">MED: <span id="kpi-completion-med">0%</span></span>
+                            <span class="text-white/20">•</span>
+                            <span class="text-purple-300 font-bold" title="EDD Completion %">EDD: <span id="kpi-completion-edd">0%</span></span>
                         </div>
                     </div>
                     <div class="kpi-card glass rounded-lg p-2.5" title="Learners who have missed 1 or more submissions">
@@ -731,6 +741,7 @@
                                     <th class="py-2.5 px-3 text-center">Expected Submissions</th>
                                     <th class="py-2.5 px-3 text-center">Learner Submissions</th>
                                     <th class="py-2.5 px-3 text-center">Active Learners</th>
+                                    <th class="py-2.5 px-3 text-center">Completion %</th>
                                     <th class="py-2.5 px-3 text-center">Inactive Learners</th>
                                     <th class="py-2.5 px-3 text-center">Missed Subs</th>
                                     <th class="py-2.5 px-3 text-center">Avg Time</th>
@@ -789,6 +800,7 @@
                                     <th class="py-2.5 px-3">Cohort Name</th>
                                     <th class="py-2.5 px-3 text-center">Total Learners</th>
                                     <th class="py-2.5 px-3 text-center">Active Learners</th>
+                                    <th class="py-2.5 px-3 text-center">Completion %</th>
                                     <th class="py-2.5 px-3 text-center">Red Alert Learners</th>
                                     <th class="py-2.5 px-3 text-center">Avg Time Spent</th>
                                     <th class="py-2.5 px-3 text-center">Missed Submissions</th>
@@ -2358,6 +2370,8 @@
                 badge.className = 'badge bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold';
             }
 
+            const filteredCompletionPct = totalLearners > 0 ? Math.round((activeCount / totalLearners) * 1000) / 10 : 0.0;
+
             return {
                 ...data,
                 kpis: {
@@ -2365,9 +2379,12 @@
                     total_learners: totalLearners,
                     active_learners: activeCount,
                     missed_subs: missedCount,
+                    missed_submission_learners: missedCount,
                     inactive: inactiveCount,
+                    inactive_learners: inactiveCount,
                     avg_time: formattedAvgTime,
-                    avg_time_hours: avgTimeHours
+                    avg_time_hours: avgTimeHours,
+                    completion_pct: filteredCompletionPct
                 },
                 cat_counts: {
                     'ACTIVE': activeCount,
@@ -2469,6 +2486,12 @@
             document.getElementById('kpi-inactive').textContent = k.inactive_learners ?? '--';
             document.getElementById('kpi-time').textContent = k.avg_time_hours ?? '--';
 
+            const totLearners = k.total_learners || 0;
+            const actLearners = k.active_learners || 0;
+            const compPct = k.completion_pct !== undefined ? k.completion_pct : (totLearners > 0 ? (Math.round((actLearners / totLearners) * 1000) / 10).toFixed(1) : '0.0');
+            const compEl = document.getElementById('kpi-completion');
+            if (compEl) compEl.textContent = compPct;
+
             const setTxt = (id, val) => {
                 const el = document.getElementById(id);
                 if (el) el.textContent = val;
@@ -2479,6 +2502,16 @@
 
             setTxt('kpi-active-med', k.med_active ?? 0);
             setTxt('kpi-active-edd', k.edd_active ?? 0);
+
+            const medTot = k.med_total || 0;
+            const medAct = k.med_active || 0;
+            const medCompPct = medTot > 0 ? (Math.round((medAct / medTot) * 1000) / 10).toFixed(1) + '%' : '0.0%';
+            setTxt('kpi-completion-med', medCompPct);
+
+            const eddTot = k.edd_total || 0;
+            const eddAct = k.edd_active || 0;
+            const eddCompPct = eddTot > 0 ? (Math.round((eddAct / eddTot) * 1000) / 10).toFixed(1) + '%' : '0.0%';
+            setTxt('kpi-completion-edd', eddCompPct);
 
             setTxt('kpi-missed-med', k.med_missed ?? 0);
             setTxt('kpi-missed-edd', k.edd_missed ?? 0);
@@ -2567,7 +2600,7 @@
 
             const entries = Object.entries(courseMap);
             if (entries.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-white/40 text-xs italic">No course shells match the active filters.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" class="py-8 text-center text-white/40 text-xs italic">No course shells match the active filters.</td></tr>`;
                 return;
             }
 
@@ -2584,6 +2617,8 @@
                 if (healthPct < 40) healthColor = '#ef4444';
                 else if (healthPct <= 75) healthColor = '#f59e0b';
 
+                const cCompPct = cm.completion_pct !== undefined ? cm.completion_pct : (cm.total > 0 ? (Math.round((cm.active / cm.total) * 1000) / 10).toFixed(1) : '0.0');
+
                 tbody.innerHTML += `<tr class="table-row">
                     <td class="py-2.5 px-3 text-white/90 font-mono text-[11px]">
                         <div class="font-bold">${cname}</div>
@@ -2593,6 +2628,7 @@
                     <td class="py-2.5 px-3 text-center text-purple-300 font-mono font-semibold">${cm.total_asgn || 0}</td>
                     <td class="py-2.5 px-3 text-center text-blue-400 font-mono font-bold">${cm.submitted}</td>
                     <td class="py-2.5 px-3 text-center text-emerald-400 font-mono font-bold">${cm.active}</td>
+                    <td class="py-2.5 px-3 text-center text-emerald-400 font-mono font-bold">${cCompPct}%</td>
                     <td class="py-2.5 px-3 text-center font-mono ${cm.inactive > 0 ? 'text-red-400 font-bold' : 'text-white/40'}">${cm.inactive}</td>
                     <td class="py-2.5 px-3 text-center text-amber-400 font-mono">${cm.missed_submissions || 0}</td>
                     <td class="py-2.5 px-3 text-center text-white/70 font-mono font-semibold">${cm.avg_time_hours || 0} hrs</td>
@@ -2716,15 +2752,18 @@
 
             const entries = Object.entries(cohortMap);
             if (entries.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-white/40 text-xs italic">No cohort data matches the active filters.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-white/40 text-xs italic">No cohort data matches the active filters.</td></tr>`;
                 return;
             }
 
             entries.forEach(([cname, cinfo]) => {
+                const cohCompPct = cinfo.completion_pct !== undefined ? cinfo.completion_pct : (cinfo.total > 0 ? (Math.round((cinfo.active / cinfo.total) * 1000) / 10).toFixed(1) : '0.0');
+
                 tbody.innerHTML += `<tr class="table-row">
                     <td class="py-2.5 px-3 text-white/90 font-medium">${cinfo.name}</td>
                     <td class="py-2.5 px-3 text-center text-white/80 font-mono">${cinfo.total}</td>
                     <td class="py-2.5 px-3 text-center text-emerald-400 font-mono font-bold">${cinfo.active}</td>
+                    <td class="py-2.5 px-3 text-center text-emerald-400 font-mono font-bold">${cohCompPct}%</td>
                     <td class="py-2.5 px-3 text-center text-red-400 font-mono font-bold">${cinfo.inactive}</td>
                     <td class="py-2.5 px-3 text-center font-mono text-white/70">${cinfo.avg_time_hours} hrs</td>
                     <td class="py-2.5 px-3 text-center text-amber-400 font-mono">${cinfo.missed_submissions || 0}</td>

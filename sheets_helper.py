@@ -845,6 +845,7 @@ def _fetch_fresh_dashboard_data():
         lp["avg_time_hms"] = _format_hms(avg_s)
 
     for cid, cinfo in course_map.items():
+        cinfo["completion_pct"] = round((cinfo["active"] / cinfo["total"]) * 100.0, 1) if cinfo["total"] > 0 else 0.0
         if cinfo["total_asgn"] > 0:
             cinfo["health_pct"] = round(min(100.0, (cinfo["submitted"] / cinfo["total_asgn"]) * 100.0), 1)
         elif cinfo["total"] > 0:
@@ -855,6 +856,7 @@ def _fetch_fresh_dashboard_data():
     processed_cohorts = {}
     for cname, cinfo in cohort_map.items():
         avg_coh_t = round((cinfo["total_time_s"] / cinfo["total"]) / 3600, 2) if cinfo["total"] else 0
+        coh_comp_pct = round((cinfo["active"] / cinfo["total"]) * 100.0, 1) if cinfo["total"] > 0 else 0.0
         processed_cohorts[cname] = {
             "name": cname,
             "total": cinfo["total"],
@@ -862,13 +864,15 @@ def _fetch_fresh_dashboard_data():
             "inactive": cinfo["inactive"],
             "missed_submissions": cinfo["missed_submissions"],
             "missing": cinfo["missing"],
-            "avg_time_hours": avg_coh_t
+            "avg_time_hours": avg_coh_t,
+            "completion_pct": coh_comp_pct
         }
 
     total_learners_cnt = active_ct + inactive_ct
     missed_submissions_cnt = cat_counts.get("MISSED SUBMISSION", 0)
     inactive_only_cnt = cat_counts.get("INACTIVE", 0) + cat_counts.get("INACTIVE - NOT LOGGED IN", 0)
     eng_ratio = round((active_ct / max(1, total_learners_cnt)) * 100.0, 1) if total_learners_cnt else 0.0
+    completion_pct = round((active_ct / max(1, total_learners_cnt)) * 100.0, 1) if total_learners_cnt else 0.0
 
     weekly_summary = []
     for wi in sorted(weekly_agg.keys()):
@@ -907,7 +911,8 @@ def _fetch_fresh_dashboard_data():
             "total_missing": total_missing,
             "total_submitted": total_submitted,
             "avg_time_hours": avg_time_h,
-            "engagement_ratio": eng_ratio
+            "engagement_ratio": eng_ratio,
+            "completion_pct": completion_pct
         },
         "cat_counts": cat_counts,
         "course_tabs": sorted(course_tabs),

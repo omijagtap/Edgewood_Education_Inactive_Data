@@ -874,9 +874,10 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
     ws_dash["A4"] = "Portfolio Overview"
     ws_dash["A4"].font = Font(name="Segoe UI", size=13, bold=True, color="1E293B")
     
+    dash_cat_headers = ["ACTIVE", "MISSED SUBMISSION", "NOT ACTIVE", "In Active", "No Submission"]
     headers_dash = [
         "Course Code", "Course Name", "Total Enrolled", 
-        "ACTIVE", "MISSED SUBMISSION", "NOT ACTIVE", "In Active", "No Submission"
+        "ACTIVE", "MISSED SUBMISSION", "NOT ACTIVE", "In Active", "No Submission", "Completion %"
     ]
     
     for c_idx, col_name in enumerate(headers_dash, 1):
@@ -888,21 +889,31 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
         
     curr_row = 6
     total_portfolio_enrolled = 0
-    total_portfolio_cats = {cat: 0 for cat in CATEGORY_STYLES}
+    total_portfolio_cats = {cat: 0 for cat in dash_cat_headers}
     
     for res in course_results:
         details = res["course_details"]
         students = res["processed_students"]
         
-        cat_counts = {cat: 0 for cat in CATEGORY_STYLES}
+        cat_counts = {cat: 0 for cat in dash_cat_headers}
         for s in students:
-            cat = s["category"]
-            if cat in cat_counts:
-                cat_counts[cat] += 1
+            raw_cat = s.get("category", "")
+            if raw_cat == "ACTIVE":
+                cat_counts["ACTIVE"] += 1
+            elif raw_cat == "MISSED SUBMISSION":
+                cat_counts["MISSED SUBMISSION"] += 1
+            elif raw_cat in ["NOT ACTIVE", "INACTIVE"]:
+                cat_counts["NOT ACTIVE"] += 1
+            elif raw_cat in ["In Active", "INACTIVE - NOT LOGGED IN", "NO ACTIVITY"]:
+                cat_counts["In Active"] += 1
+            elif raw_cat == "No Submission":
+                cat_counts["No Submission"] += 1
+            elif raw_cat in cat_counts:
+                cat_counts[raw_cat] += 1
                 
         total_enrolled = len(students)
         total_portfolio_enrolled += total_enrolled
-        for cat in CATEGORY_STYLES:
+        for cat in dash_cat_headers:
             total_portfolio_cats[cat] += cat_counts[cat]
             
         ws_dash.cell(row=curr_row, column=1, value=details["course_code"]).font = Font(name="Segoe UI", size=10, bold=True)
@@ -915,17 +926,24 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
         ws_dash.cell(row=curr_row, column=3).border = thin_border
         
         c_offset = 4
-        for cat in CATEGORY_STYLES:
+        for cat in dash_cat_headers:
             count = cat_counts[cat]
             cell_cnt = ws_dash.cell(row=curr_row, column=c_offset, value=count)
             cell_cnt.alignment = Alignment(horizontal="center")
             cell_cnt.border = thin_border
             
-            style = CATEGORY_STYLES[cat]
+            style = CATEGORY_STYLES.get(cat, {"fill": "F1F5F9", "font": "475569"})
             cell_cnt.fill = PatternFill(start_color=style["fill"], end_color=style["fill"], fill_type="solid")
             cell_cnt.font = Font(name="Segoe UI", size=10, bold=count > 0, color=style["font"])
             c_offset += 1
             
+        course_comp_pct = f"{(cat_counts['ACTIVE'] / total_enrolled * 100):.1f}%" if total_enrolled > 0 else "0.0%"
+        comp_cell = ws_dash.cell(row=curr_row, column=c_offset, value=course_comp_pct)
+        comp_cell.alignment = Alignment(horizontal="center")
+        comp_cell.border = thin_border
+        comp_cell.font = Font(name="Segoe UI", size=10, bold=True, color="166534")
+        comp_cell.fill = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid")
+
         curr_row += 1
         
     # Totals Row
@@ -943,7 +961,7 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
     t_enrolled_cell.fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
     
     c_offset = 4
-    for cat in CATEGORY_STYLES:
+    for cat in dash_cat_headers:
         t_count = total_portfolio_cats[cat]
         t_cell_cnt = ws_dash.cell(row=curr_row, column=c_offset, value=t_count)
         t_cell_cnt.font = Font(name="Segoe UI", size=10, bold=True)
@@ -952,6 +970,15 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
         t_cell_cnt.fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
         c_offset += 1
         
+    portfolio_comp_pct = f"{(total_portfolio_cats['ACTIVE'] / total_portfolio_enrolled * 100):.1f}%" if total_portfolio_enrolled > 0 else "0.0%"
+    t_comp_cell = ws_dash.cell(row=curr_row, column=c_offset, value=portfolio_comp_pct)
+    t_comp_cell.font = Font(name="Segoe UI", size=10, bold=True, color="166534")
+    t_comp_cell.alignment = Alignment(horizontal="center")
+    t_comp_cell.border = double_bottom_border
+    t_comp_cell.fill = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid")
+    t_comp_cell.border = double_bottom_border
+    t_comp_cell.fill = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid")
+
     curr_row += 3
     
     # 2. Stacked Metadata Cards
