@@ -910,6 +910,13 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
                 cat_counts["No Submission"] += 1
             elif raw_cat in cat_counts:
                 cat_counts[raw_cat] += 1
+
+        # No Submission count = Total Enrolled in course - learners who have submitted at least 1 assignment
+        # (i.e., learners with 0 submitted assignments)
+        cat_counts["No Submission"] = sum(
+            1 for s in students
+            if s.get("submitted_assignments", 0) == 0 or s.get("category") == "No Submission"
+        )
                 
         total_enrolled = len(students)
         total_portfolio_enrolled += total_enrolled
@@ -1079,7 +1086,8 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
 
         # Headers Setup
         headers_row1 = [
-            ("Learner Information", 4),
+            ("Course Information", 2),
+            ("Learner Information", 6),
             ("Activity Summary", 2),
             ("Assignment Submissions", 2 + num_asgn_cols),
             ("Engagement Classification", 3),
@@ -1092,7 +1100,8 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
             headers_row1.append((date_str, 2))
             
         headers_row2 = [
-            "Cohort", "Learner Name", "Official Email ID", "Enrollment Status",
+            "Course ID", "Course Name",
+            "Cohort", "Learner Name", "Official Email ID", "Program", "Degree Code", "Enrollment Status",
             "Last Activity Timestamp", "Total Time Spent (HH:MM:SS)",
             "Total Assignments", "Completed Assignments"
         ]
@@ -1149,32 +1158,50 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
             ws_detail.row_dimensions[curr_s_row].height = 22
             row_fill = PatternFill(start_color=ZEBRA_COLOR, end_color=ZEBRA_COLOR, fill_type="solid") if s_idx % 2 == 1 else PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
             
-            # Info fields
-            ws_detail.cell(row=curr_s_row, column=1, value=student["cohort"]).alignment = Alignment(horizontal="left", vertical="center")
-            ws_detail.cell(row=curr_s_row, column=2, value=student["name"]).alignment = Alignment(horizontal="left", vertical="center")
-            ws_detail.cell(row=curr_s_row, column=3, value=student["email"]).alignment = Alignment(horizontal="left", vertical="center")
-            ws_detail.cell(row=curr_s_row, column=4, value=(student["status"] or "active").capitalize()).alignment = Alignment(horizontal="center", vertical="center")
+            prog_val = student.get("program")
+            deg_val = student.get("degree_code")
+            if not prog_val or prog_val == "Not Found in Sheet":
+                try:
+                    import sheets_helper
+                    pinfo = sheets_helper.lookup_learner_program(student.get("email"))
+                    prog_val = pinfo.get("program", "Not Found in Sheet")
+                    deg_val = pinfo.get("degree_code", "Not Found in Sheet")
+                except Exception:
+                    prog_val = prog_val or "Not Found in Sheet"
+                    deg_val = deg_val or "Not Found in Sheet"
+
+            # Course Information
+            ws_detail.cell(row=curr_s_row, column=1, value=course_details["course_code"]).alignment = Alignment(horizontal="center", vertical="center")
+            ws_detail.cell(row=curr_s_row, column=2, value=course_details["course_name"]).alignment = Alignment(horizontal="left", vertical="center")
+
+            # Learner Information
+            ws_detail.cell(row=curr_s_row, column=3, value=student["cohort"]).alignment = Alignment(horizontal="left", vertical="center")
+            ws_detail.cell(row=curr_s_row, column=4, value=student["name"]).alignment = Alignment(horizontal="left", vertical="center")
+            ws_detail.cell(row=curr_s_row, column=5, value=student["email"]).alignment = Alignment(horizontal="left", vertical="center")
+            ws_detail.cell(row=curr_s_row, column=6, value=prog_val).alignment = Alignment(horizontal="left", vertical="center")
+            ws_detail.cell(row=curr_s_row, column=7, value=deg_val).alignment = Alignment(horizontal="left", vertical="center")
+            ws_detail.cell(row=curr_s_row, column=8, value=(student["status"] or "active").capitalize()).alignment = Alignment(horizontal="center", vertical="center")
             
             # Last Activity
             last_act_val = student["last_activity_timestamp"]
             if isinstance(last_act_val, datetime.datetime) and last_act_val.tzinfo is not None:
                 last_act_val = last_act_val.replace(tzinfo=None)
-            last_act_cell = ws_detail.cell(row=curr_s_row, column=5, value=last_act_val)
+            last_act_cell = ws_detail.cell(row=curr_s_row, column=9, value=last_act_val)
             last_act_cell.alignment = Alignment(horizontal="center", vertical="center")
             if isinstance(last_act_val, datetime.datetime):
                 last_act_cell.number_format = 'yyyy-mm-dd hh:mm:ss'
                 
             # Time Spent
-            ws_detail.cell(row=curr_s_row, column=6, value=format_duration(student["total_engagement_seconds"])).alignment = Alignment(horizontal="center", vertical="center")
+            ws_detail.cell(row=curr_s_row, column=10, value=format_duration(student["total_engagement_seconds"])).alignment = Alignment(horizontal="center", vertical="center")
             
             # Total Assignments count
-            ws_detail.cell(row=curr_s_row, column=7, value=student["total_assignments"]).alignment = Alignment(horizontal="center", vertical="center")
+            ws_detail.cell(row=curr_s_row, column=11, value=student["total_assignments"]).alignment = Alignment(horizontal="center", vertical="center")
 
             # Completed Assignments count
-            ws_detail.cell(row=curr_s_row, column=8, value=student["submitted_assignments"]).alignment = Alignment(horizontal="center", vertical="center")
+            ws_detail.cell(row=curr_s_row, column=12, value=student["submitted_assignments"]).alignment = Alignment(horizontal="center", vertical="center")
             
             # Individual Assignment Yes/No columns
-            curr_col = 9
+            curr_col = 13
             subs_map = student.get("assignment_submissions", {})
             for a in course_assignments:
                 sub_val = subs_map.get(a["id"], "No")
@@ -1213,8 +1240,8 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
             ws_detail.cell(row=curr_s_row, column=curr_col, value=student["comment"]).alignment = Alignment(horizontal="left", vertical="center")
             curr_col += 1
 
-            # Apply basic layout borders/fonts to base student info cells (cols 1-8)
-            for c in range(1, 9):
+            # Apply basic layout borders/fonts to base student info cells (cols 1-12)
+            for c in range(1, 13):
                 cell = ws_detail.cell(row=curr_s_row, column=c)
                 cell.border = thin_border
                 cell.fill = row_fill
@@ -1272,8 +1299,8 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
     ws_con.freeze_panes = "E3"
 
     headers_con_row1 = [
-        ("Course Details", 1),
-        ("Learner Information", 4),
+        ("Course Details", 2),
+        ("Learner Information", 6),
         ("Activity Summary", 2),
         ("Assignment Tracking", 5),
         ("Engagement Classification", 3),
@@ -1282,8 +1309,8 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
         headers_con_row1.append((f"Week {w}", 2))
 
     headers_con_row2 = [
-        "Course Name",
-        "Cohort", "Learner Name", "Official Email ID", "Enrollment Status",
+        "Course ID", "Course Name",
+        "Cohort", "Learner Name", "Official Email ID", "Program", "Degree Code", "Enrollment Status",
         "Last Activity Timestamp", "Total Time Spent (HH:MM:SS)",
         "Total Assignments", "Submitted Assignments", "Missing Assignments", "Overdue Assignments", "On-Time Submissions",
         "Engagement Category", "Learner's Overall Activity", "Automated Comments"
@@ -1332,36 +1359,51 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
             curr_s_row = start_row + global_s_idx
             row_fill = PatternFill(start_color=ZEBRA_COLOR, end_color=ZEBRA_COLOR, fill_type="solid") if global_s_idx % 2 == 1 else PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
             
-            # Course Name
-            ws_con.cell(row=curr_s_row, column=1, value=course_name).alignment = Alignment(horizontal="left")
+            prog_val = student.get("program")
+            deg_val = student.get("degree_code")
+            if not prog_val or prog_val == "Not Found in Sheet":
+                try:
+                    import sheets_helper
+                    pinfo = sheets_helper.lookup_learner_program(student.get("email"))
+                    prog_val = pinfo.get("program", "Not Found in Sheet")
+                    deg_val = pinfo.get("degree_code", "Not Found in Sheet")
+                except Exception:
+                    prog_val = prog_val or "Not Found in Sheet"
+                    deg_val = deg_val or "Not Found in Sheet"
+
+            # Course Details
+            ws_con.cell(row=curr_s_row, column=1, value=course_details["course_code"]).alignment = Alignment(horizontal="center")
+            ws_con.cell(row=curr_s_row, column=2, value=course_name).alignment = Alignment(horizontal="left")
             
             # Info fields
-            ws_con.cell(row=curr_s_row, column=2, value=student["cohort"]).alignment = Alignment(horizontal="left")
-            ws_con.cell(row=curr_s_row, column=3, value=student["name"]).alignment = Alignment(horizontal="left")
-            ws_con.cell(row=curr_s_row, column=4, value=student["email"]).alignment = Alignment(horizontal="left")
-            ws_con.cell(row=curr_s_row, column=5, value=(student["status"] or "active").capitalize()).alignment = Alignment(horizontal="center")
+            ws_con.cell(row=curr_s_row, column=3, value=student["cohort"]).alignment = Alignment(horizontal="left")
+            ws_con.cell(row=curr_s_row, column=4, value=student["name"]).alignment = Alignment(horizontal="left")
+            ws_con.cell(row=curr_s_row, column=5, value=student["email"]).alignment = Alignment(horizontal="left")
+            ws_con.cell(row=curr_s_row, column=6, value=prog_val).alignment = Alignment(horizontal="left")
+            ws_con.cell(row=curr_s_row, column=7, value=deg_val).alignment = Alignment(horizontal="left")
+            ws_con.cell(row=curr_s_row, column=8, value=(student["status"] or "active").capitalize()).alignment = Alignment(horizontal="center")
             
             # Last Activity
             last_act_val = student["last_activity_timestamp"]
             if isinstance(last_act_val, datetime.datetime) and last_act_val.tzinfo is not None:
                 last_act_val = last_act_val.replace(tzinfo=None)
-            last_act_cell = ws_con.cell(row=curr_s_row, column=6, value=last_act_val)
+            last_act_cell = ws_con.cell(row=curr_s_row, column=9, value=last_act_val)
             last_act_cell.alignment = Alignment(horizontal="center")
             if isinstance(last_act_val, datetime.datetime):
                 last_act_cell.number_format = 'yyyy-mm-dd hh:mm:ss'
                 
             # Time Spent
-            ws_con.cell(row=curr_s_row, column=7, value=format_duration(student["total_engagement_seconds"])).alignment = Alignment(horizontal="center")
+            ws_con.cell(row=curr_s_row, column=10, value=format_duration(student["total_engagement_seconds"])).alignment = Alignment(horizontal="center")
             
             # Assignment columns
-            ws_con.cell(row=curr_s_row, column=8, value=student["total_assignments"]).alignment = Alignment(horizontal="center")
-            ws_con.cell(row=curr_s_row, column=9, value=student["submitted_assignments"]).alignment = Alignment(horizontal="center")
-            ws_con.cell(row=curr_s_row, column=10, value=student["missing_assignments"]).alignment = Alignment(horizontal="center")
-            ws_con.cell(row=curr_s_row, column=11, value=student["overdue_assignments"]).alignment = Alignment(horizontal="center")
-            ws_con.cell(row=curr_s_row, column=12, value=student["on_time_submissions"]).alignment = Alignment(horizontal="center")
+            ws_con.cell(row=curr_s_row, column=11, value=student["total_assignments"]).alignment = Alignment(horizontal="center")
+            ws_con.cell(row=curr_s_row, column=12, value=student["submitted_assignments"]).alignment = Alignment(horizontal="center")
+            ws_con.cell(row=curr_s_row, column=13, value=student["missing_assignments"]).alignment = Alignment(horizontal="center")
+            ws_con.cell(row=curr_s_row, column=14, value=student["overdue_assignments"]).alignment = Alignment(horizontal="center")
+            ws_con.cell(row=curr_s_row, column=15, value=student["on_time_submissions"]).alignment = Alignment(horizontal="center")
             
             # Engagement category
-            cat_cell = ws_con.cell(row=curr_s_row, column=13, value=student["category"])
+            cat_cell = ws_con.cell(row=curr_s_row, column=16, value=student["category"])
             cat_cell.alignment = Alignment(horizontal="center")
             if student["category"] in CATEGORY_STYLES:
                 style = CATEGORY_STYLES[student["category"]]
@@ -1369,7 +1411,7 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
                 cat_cell.font = Font(name="Segoe UI", size=10, bold=True, color=style["font"])
                 
             # Overall Activity
-            oa_cell = ws_con.cell(row=curr_s_row, column=14, value=student["overall_activity"])
+            oa_cell = ws_con.cell(row=curr_s_row, column=17, value=student["overall_activity"])
             oa_cell.alignment = Alignment(horizontal="center")
             if student["overall_activity"] == "Active":
                 oa_cell.fill = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid")
@@ -1379,18 +1421,18 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
                 oa_cell.font = Font(name="Segoe UI", size=10, bold=True, color="991B1B")
             
             # Comments
-            ws_con.cell(row=curr_s_row, column=15, value=student["comment"]).alignment = Alignment(horizontal="left")
+            ws_con.cell(row=curr_s_row, column=18, value=student["comment"]).alignment = Alignment(horizontal="left")
             
             # Apply basic layout borders/fonts to student info cells
-            for c in range(1, 16):
+            for c in range(1, 19):
                 cell = ws_con.cell(row=curr_s_row, column=c)
                 cell.border = thin_border
-                if c != 15:  # Keep specific fill/font for Category cell
+                if c != 16:  # Keep specific fill/font for Category cell
                     cell.fill = row_fill
                     cell.font = Font(name="Segoe UI", size=10)
 
             # Weekly Columns
-            c_offset = 16
+            c_offset = 19
             for w in range(1, duration_weeks + 1):
                 w_data = student["weekly_data"].get(w, {"time_spent": "-", "status": "-"})
                 w_time = w_data["time_spent"]
