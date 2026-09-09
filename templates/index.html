@@ -740,6 +740,7 @@
                                     <th class="py-2.5 px-3 text-center">Total Learners</th>
                                     <th class="py-2.5 px-3 text-center">Expected Submissions</th>
                                     <th class="py-2.5 px-3 text-center">Learner Submissions</th>
+                                    <th class="py-2.5 px-3 text-center">Pending Submissions</th>
                                     <th class="py-2.5 px-3 text-center">Active Learners</th>
                                     <th class="py-2.5 px-3 text-center">Completion %</th>
                                     <th class="py-2.5 px-3 text-center">Inactive Learners</th>
@@ -2600,7 +2601,7 @@
 
             const entries = Object.entries(courseMap);
             if (entries.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="9" class="py-8 text-center text-white/40 text-xs italic">No course shells match the active filters.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="11" class="py-8 text-center text-white/40 text-xs italic">No course shells match the active filters.</td></tr>`;
                 return;
             }
 
@@ -2618,6 +2619,7 @@
                 else if (healthPct <= 75) healthColor = '#f59e0b';
 
                 const cCompPct = cm.completion_pct !== undefined ? cm.completion_pct : (cm.total > 0 ? (Math.round((cm.active / cm.total) * 1000) / 10).toFixed(1) : '0.0');
+                const cPending = Math.max(0, (cm.total_asgn || 0) - (cm.submitted || 0));
 
                 tbody.innerHTML += `<tr class="table-row">
                     <td class="py-2.5 px-3 text-white/90 font-mono text-[11px]">
@@ -2627,6 +2629,7 @@
                     <td class="py-2.5 px-3 text-center text-white/80 font-mono">${cm.total}</td>
                     <td class="py-2.5 px-3 text-center text-purple-300 font-mono font-semibold">${cm.total_asgn || 0}</td>
                     <td class="py-2.5 px-3 text-center text-blue-400 font-mono font-bold">${cm.submitted}</td>
+                    <td class="py-2.5 px-3 text-center ${cPending > 0 ? 'text-amber-400 font-bold' : 'text-emerald-400 font-bold'} font-mono">${cPending}</td>
                     <td class="py-2.5 px-3 text-center text-emerald-400 font-mono font-bold">${cm.active}</td>
                     <td class="py-2.5 px-3 text-center text-emerald-400 font-mono font-bold">${cCompPct}%</td>
                     <td class="py-2.5 px-3 text-center font-mono ${cm.inactive > 0 ? 'text-red-400 font-bold' : 'text-white/40'}">${cm.inactive}</td>

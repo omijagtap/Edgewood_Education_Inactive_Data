@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
@@ -87,10 +88,19 @@ def _process_single_course(client, cid, task_id, excluded_modules=None, is_busin
                     if isinstance(item, str):
                         excluded_keywords.extend([s.strip().lower() for s in item.split(",") if s.strip()])
 
+        now_utc = datetime.now(timezone.utc)
         published_assignments = []
         for a in assignments:
             if a.get("published") is False or a.get("omit_from_final_grade") is True or a.get("grading_type") == "not_graded":
                 continue
+            due_at_iso = a.get("due_at")
+            if due_at_iso:
+                try:
+                    due_dt = tracker.parse_iso_datetime(due_at_iso)
+                    if due_dt and due_dt > now_utc:
+                        continue
+                except Exception:
+                    pass
             a_name = (a.get("name") or "").strip()
             if excluded_keywords and any(ex in a_name.lower() for ex in excluded_keywords):
                 continue

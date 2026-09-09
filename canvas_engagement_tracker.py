@@ -568,12 +568,17 @@ def process_report_data(student_records, assignments, submissions_map, activity_
         week_ranges.append((w, w_start, w_end))
 
     # Filter to active, published, graded, and non-excluded assignments
+    # Only include past and current date deadlines (due_at <= current_time) or assignments with no deadline (due_at is None).
+    # Exclude future-dated deadline assignments (due_at > current_time).
     published_assignments = []
     for a in assignments:
         if a.get("published") is False or a.get("omit_from_final_grade") is True or a.get("grading_type") == "not_graded":
             continue
         a_name = (a.get("name") or "").strip()
         if excluded_keywords and any(ex in a_name.lower() for ex in excluded_keywords):
+            continue
+        due_at = parse_iso_datetime(a.get("due_at"))
+        if due_at and due_at > current_time:
             continue
         published_assignments.append(a)
 
@@ -772,7 +777,8 @@ def process_report_data(student_records, assignments, submissions_map, activity_
             "total_assignments": total_assignments,
             "assignment_submissions": assignment_submissions,
             "submitted_assignments": submitted_count,
-            "missing_assignments": missing_count,
+            "pending_submissions": max(0, total_assignments - submitted_count),
+            "missing_assignments": max(0, total_assignments - submitted_count),
             "overdue_assignments": overdue_count,
             "on_time_submissions": on_time_count,
             "overall_activity": overall_activity,
@@ -876,7 +882,8 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
     
     dash_cat_headers = ["ACTIVE", "MISSED SUBMISSION", "NOT ACTIVE", "In Active", "No Submission"]
     headers_dash = [
-        "Course Code", "Course Name", "Total Enrolled", 
+        "Course Code", "Course Name", "Total Enrolled",
+        "Total Assignments", "Learner Submissions", "Pending Submissions",
         "ACTIVE", "MISSED SUBMISSION", "NOT ACTIVE", "In Active", "No Submission", "Completion %"
     ]
     
@@ -889,6 +896,9 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
         
     curr_row = 6
     total_portfolio_enrolled = 0
+    total_portfolio_asgns = 0
+    total_portfolio_subs = 0
+    total_portfolio_pending = 0
     total_portfolio_cats = {cat: 0 for cat in dash_cat_headers}
     
     for res in course_results:
@@ -920,6 +930,13 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
                 
         total_enrolled = len(students)
         total_portfolio_enrolled += total_enrolled
+        c_tot_asgns = sum(s.get("total_assignments", 0) for s in students)
+        c_tot_subs = sum(s.get("submitted_assignments", 0) for s in students)
+        c_tot_pending = sum(max(0, s.get("total_assignments", 0) - s.get("submitted_assignments", 0)) for s in students)
+        total_portfolio_asgns += c_tot_asgns
+        total_portfolio_subs += c_tot_subs
+        total_portfolio_pending += c_tot_pending
+
         for cat in dash_cat_headers:
             total_portfolio_cats[cat] += cat_counts[cat]
             
@@ -931,8 +948,24 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
         
         ws_dash.cell(row=curr_row, column=3, value=total_enrolled).alignment = Alignment(horizontal="center")
         ws_dash.cell(row=curr_row, column=3).border = thin_border
+
+        # Assignment Metrics: Total Assignments, Learner Submissions, Pending Submissions
+        c_asgn_cell = ws_dash.cell(row=curr_row, column=4, value=c_tot_asgns)
+        c_asgn_cell.alignment = Alignment(horizontal="center")
+        c_asgn_cell.border = thin_border
+        c_asgn_cell.font = Font(name="Segoe UI", size=10)
+
+        c_sub_cell = ws_dash.cell(row=curr_row, column=5, value=c_tot_subs)
+        c_sub_cell.alignment = Alignment(horizontal="center")
+        c_sub_cell.border = thin_border
+        c_sub_cell.font = Font(name="Segoe UI", size=10, bold=True, color="166534")
+
+        c_pend_cell = ws_dash.cell(row=curr_row, column=6, value=c_tot_pending)
+        c_pend_cell.alignment = Alignment(horizontal="center")
+        c_pend_cell.border = thin_border
+        c_pend_cell.font = Font(name="Segoe UI", size=10, bold=True, color="991B1B" if c_tot_pending > 0 else "166534")
         
-        c_offset = 4
+        c_offset = 7
         for cat in dash_cat_headers:
             count = cat_counts[cat]
             cell_cnt = ws_dash.cell(row=curr_row, column=c_offset, value=count)
@@ -966,8 +999,26 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
     t_enrolled_cell.alignment = Alignment(horizontal="center")
     t_enrolled_cell.border = double_bottom_border
     t_enrolled_cell.fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
+
+    t_asgn_cell = ws_dash.cell(row=curr_row, column=4, value=total_portfolio_asgns)
+    t_asgn_cell.font = Font(name="Segoe UI", size=10, bold=True)
+    t_asgn_cell.alignment = Alignment(horizontal="center")
+    t_asgn_cell.border = double_bottom_border
+    t_asgn_cell.fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
+
+    t_sub_cell = ws_dash.cell(row=curr_row, column=5, value=total_portfolio_subs)
+    t_sub_cell.font = Font(name="Segoe UI", size=10, bold=True, color="166534")
+    t_sub_cell.alignment = Alignment(horizontal="center")
+    t_sub_cell.border = double_bottom_border
+    t_sub_cell.fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
+
+    t_pend_cell = ws_dash.cell(row=curr_row, column=6, value=total_portfolio_pending)
+    t_pend_cell.font = Font(name="Segoe UI", size=10, bold=True, color="991B1B" if total_portfolio_pending > 0 else "166534")
+    t_pend_cell.alignment = Alignment(horizontal="center")
+    t_pend_cell.border = double_bottom_border
+    t_pend_cell.fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
     
-    c_offset = 4
+    c_offset = 7
     for cat in dash_cat_headers:
         t_count = total_portfolio_cats[cat]
         t_cell_cnt = ws_dash.cell(row=curr_row, column=c_offset, value=t_count)
@@ -981,8 +1032,6 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
     t_comp_cell = ws_dash.cell(row=curr_row, column=c_offset, value=portfolio_comp_pct)
     t_comp_cell.font = Font(name="Segoe UI", size=10, bold=True, color="166534")
     t_comp_cell.alignment = Alignment(horizontal="center")
-    t_comp_cell.border = double_bottom_border
-    t_comp_cell.fill = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid")
     t_comp_cell.border = double_bottom_border
     t_comp_cell.fill = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid")
 
@@ -1089,7 +1138,7 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
             ("Course Information", 2),
             ("Learner Information", 6),
             ("Activity Summary", 2),
-            ("Assignment Submissions", 2 + num_asgn_cols),
+            ("Assignment Submissions", 3 + num_asgn_cols),
             ("Engagement Classification", 3),
         ]
         
@@ -1103,7 +1152,7 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
             "Course ID", "Course Name",
             "Cohort", "Learner Name", "Official Email ID", "Program", "Degree Code", "Enrollment Status",
             "Last Activity Timestamp", "Total Time Spent (HH:MM:SS)",
-            "Total Assignments", "Completed Assignments"
+            "Total Assignments", "Completed Assignments", "Pending Submissions"
         ]
 
         for a in course_assignments:
@@ -1200,8 +1249,14 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
             # Completed Assignments count
             ws_detail.cell(row=curr_s_row, column=12, value=student["submitted_assignments"]).alignment = Alignment(horizontal="center", vertical="center")
             
+            # Pending Submissions count = Total Assignments - Completed Assignments
+            pending_cnt = max(0, student["total_assignments"] - student["submitted_assignments"])
+            pend_cell = ws_detail.cell(row=curr_s_row, column=13, value=pending_cnt)
+            pend_cell.alignment = Alignment(horizontal="center", vertical="center")
+            pend_cell.font = Font(name="Segoe UI", size=10, bold=pending_cnt > 0, color="991B1B" if pending_cnt > 0 else "166534")
+
             # Individual Assignment Yes/No columns
-            curr_col = 13
+            curr_col = 14
             subs_map = student.get("assignment_submissions", {})
             for a in course_assignments:
                 sub_val = subs_map.get(a["id"], "No")
@@ -1240,12 +1295,13 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
             ws_detail.cell(row=curr_s_row, column=curr_col, value=student["comment"]).alignment = Alignment(horizontal="left", vertical="center")
             curr_col += 1
 
-            # Apply basic layout borders/fonts to base student info cells (cols 1-12)
-            for c in range(1, 13):
+            # Apply basic layout borders/fonts to base student info cells (cols 1-13)
+            for c in range(1, 14):
                 cell = ws_detail.cell(row=curr_s_row, column=c)
                 cell.border = thin_border
                 cell.fill = row_fill
-                cell.font = Font(name="Segoe UI", size=10)
+                if c != 13:
+                    cell.font = Font(name="Segoe UI", size=10)
 
             # Weekly Columns
             c_offset = curr_col
@@ -1277,6 +1333,42 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
                     
                 c_offset += 2
 
+        # Summary Row at the bottom of Detail sheet
+        summary_row_idx = start_row + len(processed_students)
+        ws_detail.row_dimensions[summary_row_idx].height = 24
+
+        ws_detail.cell(row=summary_row_idx, column=1, value="Course Summary").font = Font(name="Segoe UI", size=10, bold=True)
+        ws_detail.cell(row=summary_row_idx, column=1).alignment = Alignment(horizontal="center", vertical="center")
+        ws_detail.cell(row=summary_row_idx, column=2, value=course_details["course_name"]).font = Font(name="Segoe UI", size=10, bold=True)
+        ws_detail.cell(row=summary_row_idx, column=3, value=f"Learners: {len(processed_students)}").font = Font(name="Segoe UI", size=10, bold=True)
+
+        tot_asgns_sum = sum(s.get("total_assignments", 0) for s in processed_students)
+        completed_sum = sum(s.get("submitted_assignments", 0) for s in processed_students)
+        pending_sum = sum(max(0, s.get("total_assignments", 0) - s.get("submitted_assignments", 0)) for s in processed_students)
+
+        c11 = ws_detail.cell(row=summary_row_idx, column=11, value=tot_asgns_sum)
+        c11.font = Font(name="Segoe UI", size=10, bold=True)
+        c11.alignment = Alignment(horizontal="center", vertical="center")
+
+        c12 = ws_detail.cell(row=summary_row_idx, column=12, value=completed_sum)
+        c12.font = Font(name="Segoe UI", size=10, bold=True, color="166534")
+        c12.alignment = Alignment(horizontal="center", vertical="center")
+
+        c13 = ws_detail.cell(row=summary_row_idx, column=13, value=pending_sum)
+        c13.font = Font(name="Segoe UI", size=10, bold=True, color="991B1B" if pending_sum > 0 else "166534")
+        c13.alignment = Alignment(horizontal="center", vertical="center")
+
+        for a_idx, a in enumerate(course_assignments):
+            asgn_yes_cnt = sum(1 for s in processed_students if s.get("assignment_submissions", {}).get(a["id"]) == "Yes")
+            a_sum_cell = ws_detail.cell(row=summary_row_idx, column=14 + a_idx, value=asgn_yes_cnt)
+            a_sum_cell.font = Font(name="Segoe UI", size=9, bold=True)
+            a_sum_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        for c in range(1, col_idx):
+            cell = ws_detail.cell(row=summary_row_idx, column=c)
+            cell.border = double_bottom_border
+            cell.fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
+
         # Auto-fit columns dynamically based on header (Row 2) and data text length
         for col in ws_detail.columns:
             max_len = 0
@@ -1302,7 +1394,7 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
         ("Course Details", 2),
         ("Learner Information", 6),
         ("Activity Summary", 2),
-        ("Assignment Tracking", 5),
+        ("Assignment Tracking", 6),
         ("Engagement Classification", 3),
     ]
     for w in range(1, duration_weeks + 1):
@@ -1312,7 +1404,7 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
         "Course ID", "Course Name",
         "Cohort", "Learner Name", "Official Email ID", "Program", "Degree Code", "Enrollment Status",
         "Last Activity Timestamp", "Total Time Spent (HH:MM:SS)",
-        "Total Assignments", "Submitted Assignments", "Missing Assignments", "Overdue Assignments", "On-Time Submissions",
+        "Total Assignments", "Submitted Assignments", "Pending Submissions", "Missing Assignments", "Overdue Assignments", "On-Time Submissions",
         "Engagement Category", "Learner's Overall Activity", "Automated Comments"
     ]
     for w in range(1, duration_weeks + 1):
@@ -1396,14 +1488,20 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
             ws_con.cell(row=curr_s_row, column=10, value=format_duration(student["total_engagement_seconds"])).alignment = Alignment(horizontal="center")
             
             # Assignment columns
+            pend_cnt = student.get("pending_submissions", max(0, student["total_assignments"] - student["submitted_assignments"]))
             ws_con.cell(row=curr_s_row, column=11, value=student["total_assignments"]).alignment = Alignment(horizontal="center")
             ws_con.cell(row=curr_s_row, column=12, value=student["submitted_assignments"]).alignment = Alignment(horizontal="center")
-            ws_con.cell(row=curr_s_row, column=13, value=student["missing_assignments"]).alignment = Alignment(horizontal="center")
-            ws_con.cell(row=curr_s_row, column=14, value=student["overdue_assignments"]).alignment = Alignment(horizontal="center")
-            ws_con.cell(row=curr_s_row, column=15, value=student["on_time_submissions"]).alignment = Alignment(horizontal="center")
+            
+            p_cell = ws_con.cell(row=curr_s_row, column=13, value=pend_cnt)
+            p_cell.alignment = Alignment(horizontal="center")
+            p_cell.font = Font(name="Segoe UI", size=10, bold=pend_cnt > 0, color="991B1B" if pend_cnt > 0 else "166534")
+
+            ws_con.cell(row=curr_s_row, column=14, value=student["missing_assignments"]).alignment = Alignment(horizontal="center")
+            ws_con.cell(row=curr_s_row, column=15, value=student["overdue_assignments"]).alignment = Alignment(horizontal="center")
+            ws_con.cell(row=curr_s_row, column=16, value=student["on_time_submissions"]).alignment = Alignment(horizontal="center")
             
             # Engagement category
-            cat_cell = ws_con.cell(row=curr_s_row, column=16, value=student["category"])
+            cat_cell = ws_con.cell(row=curr_s_row, column=17, value=student["category"])
             cat_cell.alignment = Alignment(horizontal="center")
             if student["category"] in CATEGORY_STYLES:
                 style = CATEGORY_STYLES[student["category"]]
@@ -1411,7 +1509,7 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
                 cat_cell.font = Font(name="Segoe UI", size=10, bold=True, color=style["font"])
                 
             # Overall Activity
-            oa_cell = ws_con.cell(row=curr_s_row, column=17, value=student["overall_activity"])
+            oa_cell = ws_con.cell(row=curr_s_row, column=18, value=student["overall_activity"])
             oa_cell.alignment = Alignment(horizontal="center")
             if student["overall_activity"] == "Active":
                 oa_cell.fill = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid")
@@ -1421,18 +1519,19 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
                 oa_cell.font = Font(name="Segoe UI", size=10, bold=True, color="991B1B")
             
             # Comments
-            ws_con.cell(row=curr_s_row, column=18, value=student["comment"]).alignment = Alignment(horizontal="left")
+            ws_con.cell(row=curr_s_row, column=19, value=student["comment"]).alignment = Alignment(horizontal="left")
             
             # Apply basic layout borders/fonts to student info cells
-            for c in range(1, 19):
+            for c in range(1, 20):
                 cell = ws_con.cell(row=curr_s_row, column=c)
                 cell.border = thin_border
-                if c != 16:  # Keep specific fill/font for Category cell
+                if c != 17:  # Keep specific fill/font for Category cell
                     cell.fill = row_fill
-                    cell.font = Font(name="Segoe UI", size=10)
+                    if c != 13:
+                        cell.font = Font(name="Segoe UI", size=10)
 
             # Weekly Columns
-            c_offset = 19
+            c_offset = 20
             for w in range(1, duration_weeks + 1):
                 w_data = student["weekly_data"].get(w, {"time_spent": "-", "status": "-"})
                 w_time = w_data["time_spent"]
@@ -1462,6 +1561,35 @@ def create_excel_report(course_results, output_filename, duration_weeks=None):
                 c_offset += 2
                 
             global_s_idx += 1
+
+    # Summary Row at the bottom of Consolidated Details
+    con_sum_row = start_row + global_s_idx
+    ws_con.row_dimensions[con_sum_row].height = 24
+    ws_con.cell(row=con_sum_row, column=1, value="Portfolio Total").font = Font(name="Segoe UI", size=10, bold=True)
+    ws_con.cell(row=con_sum_row, column=1).alignment = Alignment(horizontal="center")
+    ws_con.cell(row=con_sum_row, column=3, value=f"Total Learners: {global_s_idx}").font = Font(name="Segoe UI", size=10, bold=True)
+
+    all_procs = [s for res in course_results for s in res["processed_students"]]
+    t_asgns = sum(s.get("total_assignments", 0) for s in all_procs)
+    t_subs = sum(s.get("submitted_assignments", 0) for s in all_procs)
+    t_pends = sum(max(0, s.get("total_assignments", 0) - s.get("submitted_assignments", 0)) for s in all_procs)
+
+    c11 = ws_con.cell(row=con_sum_row, column=11, value=t_asgns)
+    c11.font = Font(name="Segoe UI", size=10, bold=True)
+    c11.alignment = Alignment(horizontal="center")
+
+    c12 = ws_con.cell(row=con_sum_row, column=12, value=t_subs)
+    c12.font = Font(name="Segoe UI", size=10, bold=True, color="166534")
+    c12.alignment = Alignment(horizontal="center")
+
+    c13 = ws_con.cell(row=con_sum_row, column=13, value=t_pends)
+    c13.font = Font(name="Segoe UI", size=10, bold=True, color="991B1B" if t_pends > 0 else "166534")
+    c13.alignment = Alignment(horizontal="center")
+
+    for c in range(1, col_idx):
+        cell = ws_con.cell(row=con_sum_row, column=c)
+        cell.border = double_bottom_border
+        cell.fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
 
     # Auto-fit columns for Consolidated Details
     for col in ws_con.columns:
@@ -1570,11 +1698,12 @@ def generate_mock_data(duration_weeks=6, course_codes=None):
                 "status": "active",
                 "last_activity_timestamp": current_time - timedelta(hours=2),
                 "total_engagement_seconds": 25200,
-                "total_assignments": 6,
-                "submitted_assignments": 6,
+                "total_assignments": 3,
+                "submitted_assignments": 3,
+                "pending_submissions": 0,
                 "missing_assignments": 0,
                 "overdue_assignments": 0,
-                "on_time_submissions": 6,
+                "on_time_submissions": 3,
                 "category": "ACTIVE",
                 "overall_activity": "Active",
                 "comment": "All due assignments submitted on time.",
@@ -1588,11 +1717,12 @@ def generate_mock_data(duration_weeks=6, course_codes=None):
                 "status": "active",
                 "last_activity_timestamp": current_time - timedelta(days=1),
                 "total_engagement_seconds": 18000,
-                "total_assignments": 6,
-                "submitted_assignments": 3,
-                "missing_assignments": 3,
-                "overdue_assignments": 3,
-                "on_time_submissions": 3,
+                "total_assignments": 3,
+                "submitted_assignments": 2,
+                "pending_submissions": 1,
+                "missing_assignments": 1,
+                "overdue_assignments": 1,
+                "on_time_submissions": 2,
                 "category": "MISSED SUBMISSION",
                 "overall_activity": "Active",
                 "comment": "Submitted 2 of 3 due assignments.",
@@ -1606,10 +1736,11 @@ def generate_mock_data(duration_weeks=6, course_codes=None):
                 "status": "active",
                 "last_activity_timestamp": current_time - timedelta(days=3),
                 "total_engagement_seconds": 2400,
-                "total_assignments": 6,
+                "total_assignments": 3,
                 "submitted_assignments": 0,
-                "missing_assignments": 6,
-                "overdue_assignments": 6,
+                "pending_submissions": 3,
+                "missing_assignments": 3,
+                "overdue_assignments": 3,
                 "on_time_submissions": 0,
                 "category": "INACTIVE",
                 "overall_activity": "Red Alert Learner",
@@ -1624,10 +1755,11 @@ def generate_mock_data(duration_weeks=6, course_codes=None):
                 "status": "active",
                 "last_activity_timestamp": None,
                 "total_engagement_seconds": 0,
-                "total_assignments": 6,
+                "total_assignments": 3,
                 "submitted_assignments": 0,
-                "missing_assignments": 6,
-                "overdue_assignments": 6,
+                "pending_submissions": 3,
+                "missing_assignments": 3,
+                "overdue_assignments": 3,
                 "on_time_submissions": 0,
                 "category": "INACTIVE - NOT LOGGED IN",
                 "overall_activity": "Red Alert Learner",

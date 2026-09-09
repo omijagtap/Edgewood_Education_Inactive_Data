@@ -201,7 +201,7 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
 
             assignments = assignments or []
             num_asgn_cols = len(assignments)
-            total_cols = 12 + num_asgn_cols + 2 + (duration_weeks * 2)
+            total_cols = 13 + num_asgn_cols + 3 + (duration_weeks * 2)
 
             try:
                 old_ws = sh.worksheet(tab)
@@ -215,16 +215,16 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
                     sh.del_worksheet(old_ws)
                     time.sleep(1)
                     print(f"  Creating worksheet '{tab}'...")
-                    ws = sh.add_worksheet(title=tab, rows=str(max(500, len(flat_rows)+10)), cols=str(total_cols + 2))
+                    ws = sh.add_worksheet(title=tab, rows=str(max(500, len(flat_rows)+15)), cols=str(total_cols + 2))
                 else:
                     print(f"  Worksheet '{tab}' is the only tab. Updating via temp worksheet...")
                     temp_title = f"{tab}_new"
-                    ws = sh.add_worksheet(title=temp_title, rows=str(max(500, len(flat_rows)+10)), cols=str(total_cols + 2))
+                    ws = sh.add_worksheet(title=temp_title, rows=str(max(500, len(flat_rows)+15)), cols=str(total_cols + 2))
                     sh.del_worksheet(old_ws)
                     ws.update_title(tab)
             else:
                 print(f"  Creating worksheet '{tab}'...")
-                ws = sh.add_worksheet(title=tab, rows=str(max(500, len(flat_rows)+10)), cols=str(total_cols + 2))
+                ws = sh.add_worksheet(title=tab, rows=str(max(500, len(flat_rows)+15)), cols=str(total_cols + 2))
 
             try:
                 stale = sh.worksheet("Consolidate")
@@ -244,8 +244,8 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
         ["Course Information"] * 2
         + ["Learner Information"] * 6
         + ["Activity Summary"] * 2
-        + ["Assignment Submissions"] * (2 + num_asgn_cols)
-        + ["Engagement Classification"] * 2
+        + ["Assignment Submissions"] * (3 + num_asgn_cols)
+        + ["Engagement Classification"] * 3
     )
     for w in range(1, duration_weeks + 1):
         grp_row1 += [f"Week {w}"] * 2
@@ -254,7 +254,7 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
         "Course ID", "Course Name",
         "Cohort", "Learner Name", "Official Email ID", "Program", "Degree Code", "Enrollment Status",
         "Last Activity Timestamp", "Total Time Spent (HH:MM:SS)",
-        "Total Assignments", "Completed Assignments"
+        "Total Assignments", "Completed Assignments", "Pending Submissions"
     ]
 
     for a in assignments:
@@ -269,7 +269,7 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
         from canvas_engagement_tracker import format_deadline_header
         hdr_row2.append(f"{a_name} {format_deadline_header(due_at)}")
 
-    hdr_row2.extend(["Engagement Category", "Overall Activity"])
+    hdr_row2.extend(["Engagement Category", "Overall Activity", "Automated Comments"])
     for w in range(1, duration_weeks + 1):
         hdr_row2 += [f"W{w} Duration (HH:MM:SS)", f"W{w} Status"]
 
@@ -281,6 +281,8 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
         completed_count = r.get("submitted_assignments")
         if completed_count is None:
             completed_count = sum(1 for a in assignments if subs_map.get(a["id"]) == "Yes")
+        total_a = r.get("total_assignments", len(assignments))
+        pending_count = max(0, total_a - completed_count)
 
         prog_info = lookup_learner_program(r.get("email", ""))
         p_val = r.get("program") or prog_info.get("program", "N/A")
@@ -291,15 +293,16 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
             r.get("cohort", "N/A"), r.get("name", "N/A"),
             r.get("email", "N/A"), p_val, d_val, r.get("status", "N/A"),
             last_str, _hms(r.get("total_engagement_seconds", 0)),
-            r.get("total_assignments", len(assignments)),
-            completed_count
+            total_a,
+            completed_count,
+            pending_count
         ]
 
         for a in assignments:
             row.append(subs_map.get(a["id"], "No"))
 
         row.extend([
-            r.get("category", "N/A"), r.get("overall_activity", "N/A")
+            r.get("category", "N/A"), r.get("overall_activity", "N/A"), r.get("comment", "N/A")
         ])
 
         wd = r.get("weekly_data", {})
@@ -310,6 +313,31 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
             row.append(_hms(t) if isinstance(t, (int, float)) else str(t))
             row.append(str(s))
         rows.append(row)
+
+    # Add Course Summary Row at the bottom of the sheet
+    tot_asgns_sum = sum(r.get("total_assignments", len(assignments)) for r in flat_rows)
+    completed_sum = sum(
+        r.get("submitted_assignments") if r.get("submitted_assignments") is not None
+        else sum(1 for a in assignments if r.get("assignment_submissions", {}).get(a["id"]) == "Yes")
+        for r in flat_rows
+    )
+    pending_sum = max(0, tot_asgns_sum - completed_sum)
+
+    sum_row = [
+        "Course Summary", course_name,
+        f"Learners: {len(flat_rows)}", "", "", "", "", "",
+        "", "",
+        tot_asgns_sum,
+        completed_sum,
+        pending_sum
+    ]
+    for a in assignments:
+        yes_cnt = sum(1 for r in flat_rows if r.get("assignment_submissions", {}).get(a["id"]) == "Yes")
+        sum_row.append(yes_cnt)
+    sum_row.extend(["", "", ""])
+    for w in range(1, duration_weeks + 1):
+        sum_row.extend(["", ""])
+    rows.append(sum_row)
 
     end_col_letter = _col_letter(total_cols)
     ws.update(range_name=f"A1:{end_col_letter}{len(rows)}", values=rows)
@@ -338,7 +366,7 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
                                                verticalAlignment="MIDDLE"))
 
             for idx_a in range(num_asgn_cols):
-                col_let = _col_letter(13 + idx_a)
+                col_let = _col_letter(14 + idx_a)
                 for i, r in enumerate(flat_rows, start=3):
                     a_id = assignments[idx_a]["id"]
                     sub_val = r.get("assignment_submissions", {}).get(a_id, "No")
@@ -351,7 +379,7 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
                                                    verticalAlignment="MIDDLE",
                                                    borders=_border()))
 
-            cat_col_idx = 13 + num_asgn_cols
+            cat_col_idx = 14 + num_asgn_cols
             cat_col = _col_letter(cat_col_idx)
             for i, r in enumerate(flat_rows, start=3):
                 cat = r.get("category", "")
@@ -376,7 +404,7 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
                                                borders=_border()))
 
             for w in range(1, duration_weeks + 1):
-                status_col_idx = cat_col_idx + 1 + (w - 1) * 2 + 2
+                status_col_idx = cat_col_idx + 2 + (w - 1) * 2 + 2
                 status_col = _col_letter(status_col_idx)
                 for i, r in enumerate(flat_rows, start=3):
                     wk = r.get("weekly_data", {}).get(w, {})
@@ -395,11 +423,12 @@ def push_to_google_sheet(flat_rows, sis_id, course_name, duration_weeks=6, assig
         dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 0, "endIndex": 2}, "properties": {"pixelSize": 180}, "fields": "pixelSize"}})
         dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 2, "endIndex": 5}, "properties": {"pixelSize": 220}, "fields": "pixelSize"}})
         dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 5, "endIndex": 10}, "properties": {"pixelSize": 190}, "fields": "pixelSize"}})
+        dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 10, "endIndex": 13}, "properties": {"pixelSize": 130}, "fields": "pixelSize"}})
         if num_asgn_cols > 0:
-            dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 10, "endIndex": 10 + num_asgn_cols}, "properties": {"pixelSize": 260}, "fields": "pixelSize"}})
-        c_st = 10 + num_asgn_cols
-        dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": c_st, "endIndex": c_st + 2}, "properties": {"pixelSize": 260}, "fields": "pixelSize"}})
-        w_st = c_st + 2
+            dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": 13, "endIndex": 13 + num_asgn_cols}, "properties": {"pixelSize": 260}, "fields": "pixelSize"}})
+        c_st = 13 + num_asgn_cols
+        dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": c_st, "endIndex": c_st + 3}, "properties": {"pixelSize": 260}, "fields": "pixelSize"}})
+        w_st = c_st + 3
         dim_reqs.append({"updateDimensionProperties": {"range": {"sheetId": ws.id, "dimension": "COLUMNS", "startIndex": w_st, "endIndex": w_st + (duration_weeks * 2)}, "properties": {"pixelSize": 190}, "fields": "pixelSize"}})
         sh.batch_update({"requests": dim_reqs})
     except Exception as dim_err:
@@ -579,6 +608,10 @@ def _fetch_fresh_dashboard_data():
         if len(row) < 5:
             continue
 
+        first_cell = row[0].strip().lower()
+        if "summary" in first_cell or "portfolio total" in first_cell or "course summary" in first_cell:
+            continue
+
         hdr_lower = [h.strip().lower() for h in header_row]
 
         def find_idx(target_name, default_i):
@@ -640,11 +673,23 @@ def _fetch_fresh_dashboard_data():
         overall  = row[overall_idx].strip()  if len(row) > overall_idx  else "N/A"
         category = row[category_idx].strip() if len(row) > category_idx else "N/A"
 
-        asgn_start = 12 if "program" in hdr_lower else 10
-        asgn_end   = asgn_start + total_asgn
+        if "pending submissions" in hdr_lower:
+            asgn_start = hdr_lower.index("pending submissions") + 1
+        elif "completed assignments" in hdr_lower:
+            asgn_start = hdr_lower.index("completed assignments") + 1
+        elif "program" in hdr_lower:
+            asgn_start = 12
+        else:
+            asgn_start = 10
+
+        if "engagement category" in hdr_lower:
+            asgn_end = hdr_lower.index("engagement category")
+        else:
+            asgn_end = asgn_start + total_asgn
+
         asgn_cells = row[asgn_start:asgn_end] if len(row) >= asgn_end else row[asgn_start:]
         submitted  = sum(1 for c in asgn_cells if c.strip().lower() == "yes")
-        missing    = sum(1 for c in asgn_cells if c.strip().lower() == "no")
+        missing    = max(0, total_asgn - submitted)
 
         missed_assignments = []
         for idx_col, cell_val in enumerate(asgn_cells):
