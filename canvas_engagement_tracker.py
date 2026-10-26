@@ -275,42 +275,104 @@ def format_deadline_header(dt):
 # DATA RETRIEVAL WORKFLOW
 # ==============================================================================
 def find_course(client, identifier):
-    """Finds a course by its numeric ID, SIS course ID, or searches for it by name/code."""
-    print(f"[*] Locating course shell for: '{identifier}'...")
+    """
+    Finds a course by its numeric ID, SIS course ID, or searches for it by name/code
+    across sub-accounts (e.g. Account 141 Educational Leadership UG, 177 MBA-DBA UG)
+    and user enrollments.
+    Ensures strict match validation and NEVER falls back to an unrelated course shell.
+    """
+    raw_id = str(identifier).strip()
+    print(f"[*] Locating course shell for: '{raw_id}'...")
     
     # 1. Try treating identifier as numeric database ID
-    if str(identifier).isdigit():
+    if raw_id.isdigit():
         try:
-            course = client.request("GET", f"courses/{identifier}").json()
-            print(f"[+] Found course by Database ID: {course.get('name')}")
-            return course
+            course = client.request("GET", f"courses/{raw_id}").json()
+            if course.get("id"):
+                print(f"[+] Found course by Database ID: {course.get('name')}")
+                return course
         except Exception:
             pass
 
-    # 2. Try treating identifier as SIS ID (prefixed search)
-    encoded_sis_id = urllib.parse.quote(f"sis_course_id:{identifier}")
+    # 2. Try treating identifier as SIS ID (raw, normalized single-dash, and double-dash)
+    norm_id = re.sub(r"-+", "-", raw_id)
+    candidates_to_try = [raw_id]
+    if norm_id != raw_id:
+        candidates_to_try.append(norm_id)
+    double_dash = re.sub(r"-+", "--", raw_id)
+    if double_dash not in candidates_to_try:
+        candidates_to_try.append(double_dash)
+
+    for cand in candidates_to_try:
+        encoded_sis_id = urllib.parse.quote(f"sis_course_id:{cand}")
+        try:
+            course = client.request("GET", f"courses/{encoded_sis_id}").json()
+            if course.get("id"):
+                print(f"[+] Found course by SIS Course ID: {course.get('name')} (ID: {course.get('id')})")
+                return course
+        except Exception:
+            pass
+
+    # Helper to check if a candidate course strictly matches the requested identifier
+    def is_match(c, target_str):
+        c_code = (c.get("course_code") or "").strip()
+        c_sis  = (c.get("sis_course_id") or "").strip()
+        c_name = (c.get("name") or "").strip()
+
+        tgt_clean = target_str.strip().lower()
+        tgt_norm = re.sub(r"-+", "-", tgt_clean)
+
+        for val in [c_code, c_sis, c_name]:
+            if not val:
+                continue
+            val_clean = val.lower()
+            val_norm = re.sub(r"-+", "-", val_clean)
+            if val_clean == tgt_clean or val_norm == tgt_norm:
+                return True
+        return False
+
+    # Extract base queries for search (e.g. 'EDU-835' or cohort 'UED8')
+    parts = [p.strip() for p in re.split(r"-+", raw_id) if p.strip()]
+    search_queries = [raw_id]
+    if len(parts) >= 2:
+        search_queries.append(f"{parts[0]}-{parts[1]}")
+    if len(parts) >= 3:
+        search_queries.append(parts[2])
+
+    # 3. Search across accessible sub-accounts (where real course shells reside)
     try:
-        course = client.request("GET", f"courses/{encoded_sis_id}").json()
-        print(f"[+] Found course by SIS Course ID: {course.get('name')}")
-        return course
+        accounts = client.request("GET", "accounts").json()
     except Exception:
-        pass
+        accounts = [{"id": 141}, {"id": 177}]
 
-    # 3. Try global search for course code / name
+    account_ids = [a["id"] for a in accounts if isinstance(a, dict) and "id" in a]
+    for def_id in [141, 177]:
+        if def_id not in account_ids:
+            account_ids.append(def_id)
+
+    for acc_id in account_ids:
+        for sq in search_queries:
+            try:
+                results = client.get_paginated(f"accounts/{acc_id}/courses", {"search_term": sq})
+                for c in results:
+                    if is_match(c, raw_id):
+                        print(f"[+] Found course in Account {acc_id}: {c.get('name')} (Code: {c.get('course_code')}, ID: {c.get('id')})")
+                        return c
+            except Exception:
+                continue
+
+    # 4. Search user's enrolled courses with strict validation only
     try:
-        courses = client.get_paginated("courses", {"search_term": identifier})
-        for c in courses:
-            if c.get("course_code") == identifier or c.get("sis_course_id") == identifier or c.get("name") == identifier:
-                print(f"[+] Found course by search term matching code/name: {c.get('name')}")
+        user_courses = client.get_paginated("courses", {"search_term": raw_id})
+        for c in user_courses:
+            if is_match(c, raw_id):
+                print(f"[+] Found course by search term matching code/name: {c.get('name')} (ID: {c.get('id')})")
                 return c
-        if courses:
-            c = courses[0]
-            print(f"[!] Warning: No exact code match. Using closest search result: {c.get('name')} (ID: {c.get('id')})")
-            return c
     except Exception as e:
-        print(f"[-] Search query failed: {e}")
+        print(f"[-] Enrolled courses search query failed: {e}")
 
-    raise Exception(f"Failed to find course '{identifier}' in Canvas. Please check the Course ID or Code.")
+    # 5. Never fall back to an unrelated course (preventing Canvas Community DBA glitch)
+    raise Exception(f"Failed to find course '{raw_id}' in Canvas. Please check the Course ID or Code.")
 
 def extract_course_details(client, course, duration_weeks):
     """Extracts summary details of a course."""
